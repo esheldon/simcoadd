@@ -15,24 +15,27 @@ def show_image(
         )
 
         if noise is not None:
+            vmin, vmax = image.min(), image.max()
+            a = (noise - vmin) / (vmax - vmin)
             norm = ImageNormalize(
-                image,
-                stretch=AsinhStretch(noise),
+                vmin=vmin, vmax=vmax,
+                stretch=AsinhStretch(a),
             )
             ax.imshow(image, norm=norm, cmap=cmap)
         else:
             ax.imshow(image, cmap=cmap)
+
+        if show:
+            mplt.show()
+
+        if outfile is not None:
+            print('writing:', outfile)
+            fig.savefig(outfile, dpi=150)
+
+        mplt.close(fig)
 
     if style is None:
         _doplot()
     else:
         with mplt.style.context(style):
             _doplot()
-
-    if show:
-        mplt.show()
-
-    if outfile is not None:
-        print('writing:', outfile)
-        fig.savefig(outfile, dpi=150)
-        mplt.close(fig)
