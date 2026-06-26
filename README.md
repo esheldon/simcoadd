@@ -1,0 +1,2 @@
+# simcoadd
+Simulate coadds
