@@ -24,11 +24,11 @@ def make_obs(
         image_pos=gscen,
         wcs=gsjac,
     )
-    psf_im += psf_noise_field.get_noise(psf_dim)
+    psf_im.array[:, :] += psf_noise_field.get_noise(psf_dim)
 
     psf_obs = ngmix.Observation(
-        image=psf_im,
-        weight=psf_noise_field.get_weight(psf_im.shape),
+        image=psf_im.array,
+        weight=psf_noise_field.get_weight(psf_im.array.shape),
         jacobian=psf_jacobian,
     )
 
