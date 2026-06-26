@@ -30,7 +30,7 @@ def make_wcs(
         [[pixel_scale, 0.0],
          [0.0, pixel_scale]],
     )
-    if theta is not None:
+    if theta is not None and theta.rad != 0.0:
         costheta = np.cos(theta / galsim.radians)
         sintheta = np.sin(theta / galsim.radians)
         rot = np.array(
