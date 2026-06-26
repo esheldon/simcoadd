@@ -15,3 +15,4 @@ class WhiteNoiseField:
         nrow, ncol = dims
         weight = np.zeros((nrow, ncol))
         weight[:, :] = 1.0 / self.sigma ** 2
+        return weight
