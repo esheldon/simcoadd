@@ -1,0 +1,18 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "simcoadd"
+version = "0.1.0"
+description = "Simulate Coadds"
+readme = "README.md"
+requires-python = ">=3.9"
+authors = [{ name = "Erin Scott Sheldon" }]
+dependencies = ["numpy", "galsim"]
+
+[project.optional-dependencies]
+test = ["pytest"]
+
+[tool.setuptools.packages.find]
+include = ["simcoadd*"]
