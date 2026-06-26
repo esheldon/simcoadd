@@ -32,3 +32,5 @@ from .psfs import PowerSpectrumPSF, make_rand_psf
 
 from . import constants
 from .constants import ZERO_POINT
+
+from . import vis

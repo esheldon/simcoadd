@@ -6,7 +6,7 @@ import simcoadd
 def main():
 
     seed = 9832
-    dim = 250
+    dim = 350
     buff = 50
 
     rng = np.random.RandomState(seed)
@@ -44,7 +44,7 @@ def main():
     galaxies = simcoadd.FixedGalaxyCatalog(
         layout=layout,
         morph=galsim.Exponential(half_light_radius=0.5),
-        mag=17,
+        mag=22,
     )
 
     noise_field = simcoadd.WhiteNoiseField(rng=rng, sigma=survey.noise)
@@ -61,6 +61,13 @@ def main():
     )
 
     gsimage.array[:, :] += noise_field.get_noise(gsimage.array.shape)
+
+    simcoadd.vis.show_image(
+        image=gsimage.array,
+        noise=noise_field.sigma,
+        show=True,
+        style='dark_background',
+    )
 
 
 if __name__ == '__main__':
