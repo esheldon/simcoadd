@@ -10,18 +10,17 @@ class GridLayout(object):
         Number of pixels in each dimension
     buff: int
         Number of pixels for buffer, e.g. 50
-    spacing: float
-        Spacing in arcsec
+    spacing: galsim.Angle
+        Spacing of the lattice
         e.g. 9.5 arcsec = 47.5 pixels for pixel_scale=0.2
     """
 
     def __init__(self, rng, dim, buff, spacing, pixel_scale):
-        from .shifts import get_grid_shifts
-
         self.rng = rng
         self.dim = dim
         self.buff = buff
         self.spacing = spacing
+        self.pixel_scale = pixel_scale
 
         self.shifts = get_grid_shifts(
             rng=rng,
@@ -30,6 +29,9 @@ class GridLayout(object):
             pixel_scale=pixel_scale,
             spacing=spacing,
         )
+
+    def __len__(self):
+        return len(self.shifts)
 
 
 def get_grid_shifts(rng, dim, buff, pixel_scale, spacing):
@@ -46,7 +48,7 @@ def get_grid_shifts(rng, dim, buff, pixel_scale, spacing):
         Buffer region where no objects will be drawn.
     pixel_scale: float
         pixel scale
-    spacing: float
+    spacing: galsim.Angle
         Spacing of the lattice
 
     Returns
@@ -56,34 +58,33 @@ def get_grid_shifts(rng, dim, buff, pixel_scale, spacing):
         arcsec
     """
     import numpy as np
+    import galsim
+
+    spacing_arcsec = spacing / galsim.arcsec
 
     width = (dim - 2 * buff) * pixel_scale
-    n_on_side = int(dim / spacing * pixel_scale)
-
-    ntot = n_on_side**2
+    n_on_side = int(dim / spacing_arcsec * pixel_scale)
 
     # ix/iy are really on the sky
-    grid = spacing * (np.arange(n_on_side) - (n_on_side - 1) / 2)
+    grid = spacing_arcsec * (np.arange(n_on_side) - (n_on_side - 1) / 2)
 
-    shifts = np.zeros(ntot, dtype=[('dx', 'f8'), ('dy', 'f8')])
+    pos_bounds = (-width / 2, width / 2)
 
-    i = 0
+    shifts = []
+
     for ix in range(n_on_side):
         for iy in range(n_on_side):
+
             dx = grid[ix] + pixel_scale * rng.uniform(low=-0.5, high=0.5)
             dy = grid[iy] + pixel_scale * rng.uniform(low=-0.5, high=0.5)
 
-            shifts['dx'][i] = dx
-            shifts['dy'][i] = dy
-            i += 1
-
-    pos_bounds = (-width / 2, width / 2)
-    msk = (
-        (shifts['dx'] >= pos_bounds[0])
-        & (shifts['dx'] <= pos_bounds[1])
-        & (shifts['dy'] >= pos_bounds[0])
-        & (shifts['dy'] <= pos_bounds[1])
-    )
-    shifts = shifts[msk]
+            if (
+                dx >= pos_bounds[0]
+                and dx <= pos_bounds[1]
+                and dy >= pos_bounds[0]
+                and dy <= pos_bounds[1]
+            ):
+                shift = galsim.PositionD(dx, dy)
+                shifts.append(shift)
 
     return shifts

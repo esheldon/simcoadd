@@ -1,23 +1,28 @@
 # flake8: noqa
 __version__ = "0.1.0"
 
+
+from . import drawing
+from .drawing import draw
+
+from . import obs
+from .obs import make_obs
+
 from . import galaxies
 from .galaxies import FixedGalaxyCatalog
+
+from . import noise
+from .noise import WhiteNoiseField
 
 from . import surveys
 from .surveys import BasicSurvey, WLDeblendSurvey
 
 # from . import noise_field
-# from . import wcs
+from . import wcs
+from .wcs import make_wcs
+
 from . import layout
-from .layout import (
-    GridLayout,
-    get_pair_shifts,
-    get_grid_shifts,
-    get_hex_shifts,
-    get_random_shifts,
-    get_random_disk_shifts,
-)
+from .layout import GridLayout
 
 from . import shear
 from .shear import ShearConstant

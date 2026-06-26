@@ -9,21 +9,27 @@ class FixedGalaxyCatalog(object):
     morph: GSObject
         A galsim GSObject, such as
         galsim.Exponential(half_light_radius=0.5)
+
+        Note the flux of the input morph will be over-ridden based on mag and
+        survey band etc.
     mag: float
         The magnitude for the objects
     """
 
-    def __init__(self, num, morph, mag):
+    def __init__(self, morph, layout, mag):
         self.gal_type = 'fixed'
 
-        self._num = num
+        self._layout = layout
         self._morph = morph
         self._mag = mag
 
-    def __len__(self):
-        return self._num
+        self._redshifts = None
+        self._indexes = None
 
-    def __call__(self, survey):
+    def __len__(self):
+        return len(self._layout)
+
+    def get_obj_data(self, survey):
         """
         get galsim objects, redshifts and indexes
 
@@ -42,11 +48,19 @@ class FixedGalaxyCatalog(object):
         """
 
         flux = survey.get_flux(self._mag)
+        shifts = self._layout.shifts
 
-        objlist = [self._morph.withFlux(flux) for i in range(self.num)]
+        objlist = []
+        for i in range(len(self)):
+            obj = self._morph.withFlux(flux)
+            shift = shifts[i]
 
-        return {
-            "objlist": objlist,
-            "redshifts": None,
-            "indexes": None,
-        }
+            data = {
+                'obj': obj,
+                'redshift': None,
+                'index': i,
+                'shift': shift,
+            }
+            objlist.append(data)
+
+        return objlist

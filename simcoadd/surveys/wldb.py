@@ -1,4 +1,4 @@
-from .constants import ZERO_POINT
+from ..constants import ZERO_POINT
 
 
 class WLDeblendSurvey(object):
