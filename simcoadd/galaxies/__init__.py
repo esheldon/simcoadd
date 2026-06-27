@@ -2,3 +2,6 @@
 
 from . import fixed
 from .fixed import FixedGalaxyCatalog
+
+from . import wldb
+from .wldb import WLDeblendGalaxyCatalog

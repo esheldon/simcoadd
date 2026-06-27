@@ -37,9 +37,14 @@ class WLDeblendSurvey(object):
             pars['psf_model'] = None
             svy = descwl.survey.Survey(**pars)
 
-        self.noise = np.sqrt(svy.mean_sky_level)
         self.descwl_survey = svy
-        self.pixel_scale: float = float(pars['pixel_scale'])
+
+        # rescales to ZERO_POINT
+        self.flux_factor = get_wldeblend_rescale_fac(self.descwl_survey)
+        self.noise = np.sqrt(svy.mean_sky_level) * self.flux_factor
+
+        self.pixel_scale = pars['pixel_scale']
+
         if survey_name == "HSC":
             self.pixel_scale = 0.168
 
@@ -58,33 +63,10 @@ class WLDeblendSurvey(object):
         """
         convert mag to flux
         """
-        return self.descwl_survey.get_flux(mag)
+        return self.descwl_survey.get_flux(mag) * self.flux_factor
 
 
-def rescale_wldeblend_exp(*, survey, exp, calib_mag_zero=ZERO_POINT):
-    """
-    Rescale wldeblend images noise and weight to our zero point
-
-    Parameters
-    ----------
-    survey: WLDeblendSurvey
-        The survey object
-    exp: ExposureF
-        The exposure to rescale
-
-    Returns
-    -------
-    None
-    """
-    fac = get_wldeblend_rescale_fac(survey, calib_mag_zero)
-    vfac = fac**2
-
-    exp.image *= fac
-
-    exp.variance *= vfac
-
-
-def get_wldeblend_rescale_fac(survey, calib_mag_zero):
+def get_wldeblend_rescale_fac(survey):
     """
     Get the factor to rescale wldeblend images to our zero point
 
@@ -92,8 +74,6 @@ def get_wldeblend_rescale_fac(survey, calib_mag_zero):
     ----------
     survey: WLDeblendSurvey
         The survey object
-    calib_mag_zero: float
-        The calibrated magnitude zero point
 
     Returns
     -------
@@ -101,7 +81,8 @@ def get_wldeblend_rescale_fac(survey, calib_mag_zero):
     """
     s_zp = survey.zero_point
     s_et = survey.exposure_time
+
     # wldeblend use electrons as default unit
     # https://github.com/LSSTDESC/WeakLensingDeblending/blob/228c6655d63de9edd9bf2c8530f99199ee47fc5e/descwl/survey.py#L143
     # this function is to calibrate the image to units nano Jy
-    return 10.0 ** (0.4 * (calib_mag_zero - 24.0)) / s_zp / s_et
+    return 10.0 ** (0.4 * (ZERO_POINT - 24.0)) / s_zp / s_et
