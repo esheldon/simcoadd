@@ -1,0 +1,2 @@
+galsim
+lsstdesc.weaklensingdeblending
