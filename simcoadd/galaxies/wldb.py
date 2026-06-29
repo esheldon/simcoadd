@@ -20,34 +20,33 @@ class WLDeblendGalaxyCatalog(object):
 
         self._wldeblend_cat = read_wldeblend_cat()
 
-        # # one square degree catalog, convert to arcmin
-        # density = self._wldeblend_cat.size / (60 * 60)
-        #
-        # # randomly sample from the catalog
-        # num = len(self)
-        # self.indices = self.rng.randint(
-        #     0,
-        #     self._wldeblend_cat.size,
-        #     size=num,
-        # )
-        # # do a random rotation for each galaxy
-        # self.angles = self.rng.uniform(low=0, high=360, size=num)
+        # randomly sample from the catalog
+        num = len(self)
+        self._indices = self._rng.choice(
+            self._wldeblend_cat.size,
+            size=num,
+        )
+        self._angles = self._rng.uniform(low=0, high=360, size=num)
 
     def __len__(self):
-        return len(self.shifts_array)
+        return len(self._layout)
 
-    def get_objlist(self, *, survey):
+    def get_obj_data(self, survey):
         """
-        get a list of galsim objects, position shifts, redshifts and indexes
+        get galsim objects, redshifts, shifts and indexes
 
         Parameters
         ----------
-        survey: WLDeblendSurvey
-            The survey object
+        survey: string
+            Get objects for this band.  For the fixed
+            catalog, the objects are the same for every band
 
         Returns
         -------
-        [galsim objects], [shifts], [redshifts], [indexes]
+        Dict with
+            objlist: list of galsi GSObject
+            redshifts: None
+            indexes: None
         """
 
         import descwl  # noqa
@@ -60,28 +59,15 @@ class WLDeblendGalaxyCatalog(object):
             verbose_model=False,
         )
 
-        band = survey.filter_band
-
-        sarray = self.shifts_array
-        indexes = []
         objlist = []
-        shifts = []
-        redshifts = []
+
         for i in range(len(self)):
-            objlist.append(self._get_galaxy(builder, band, i))
-            shifts.append(galsim.PositionD(sarray['dx'][i], sarray['dy'][i]))
-            index = self.indices[i]
-            indexes.append(index)
-            redshifts.append(self._wldeblend_cat[index]["redshift"])
+            obj_data = self._get_gal_data(builder, survey, i)
+            objlist.append(obj_data)
 
-        return {
-            "objlist": objlist,
-            "shifts": shifts,
-            "redshifts": redshifts,
-            "indexes": indexes,
-        }
+        return objlist
 
-    def _get_galaxy(self, builder, band, i):
+    def _get_gal_data(self, builder, survey, i):
         """
         Get a galaxy
 
@@ -89,8 +75,8 @@ class WLDeblendGalaxyCatalog(object):
         ----------
         builder: descwl.model.GalaxyBuilder
             Builder for this object
-        band: string
-            Band string, e.g. 'r'
+        survey: string
+            Survey object
         i: int
             Index of object
 
@@ -98,23 +84,38 @@ class WLDeblendGalaxyCatalog(object):
         -------
         galsim.GSObject
         """
-        index = self.indices[i]
+        index = self._indices[i]
+        angle = self._angles[i]
+        shift = self._layout.shifts[i]
 
-        angle = self.angles[i]
+        redshift = self._wldeblend_cat['redshift'][index]
 
         galaxy = builder.from_catalog(
             self._wldeblend_cat[index],
             0,
             0,
-            band,
+            survey.descwl_survey.filter_band,
         ).model
 
         # puts on correct ZERO_POINT
-        galaxy = galaxy * self.survey.flux_factor
-
+        galaxy = galaxy * survey.flux_factor
         galaxy = galaxy.rotate(angle * galsim.degrees)
 
-        return galaxy
+        return {
+            'obj': galaxy,
+            'redshift': redshift,
+            'index': index,
+            'shift': shift,
+        }
+
+
+def get_wldb_density():
+    """
+    Get the density of the wldb catalog in #/sq. arcmin
+    """
+    cat = read_wldeblend_cat()
+    density = cat.size / (60 * 60)
+    return density
 
 
 @functools.lru_cache(maxsize=1)

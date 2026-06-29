@@ -31,13 +31,12 @@ class FixedGalaxyCatalog(object):
 
     def get_obj_data(self, survey):
         """
-        get galsim objects, redshifts and indexes
+        get galsim objects, redshifts, shifts and indexes
 
         Parameters
         ----------
-        survey: string
-            Get objects for this band.  For the fixed
-            catalog, the objects are the same for every band
+        survey: Survey object
+            The survey object
 
         Returns
         -------

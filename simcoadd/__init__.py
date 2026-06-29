@@ -9,7 +9,7 @@ from . import obs
 from .obs import make_obs
 
 from . import galaxies
-from .galaxies import FixedGalaxyCatalog
+from .galaxies import FixedGalaxyCatalog, WLDeblendGalaxyCatalog
 
 from . import noise
 from .noise import WhiteNoiseField
@@ -22,7 +22,7 @@ from . import wcs
 from .wcs import make_wcs
 
 from . import layout
-from .layout import GridLayout
+from .layout import GridLayout, RandomLayout
 
 from . import shear
 from .shear import ShearConstant

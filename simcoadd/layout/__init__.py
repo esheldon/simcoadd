@@ -2,6 +2,8 @@
 
 from . import grid
 from .grid import GridLayout
+from . import random
+from .random import RandomLayout
 
 # from . import shifts
 # from .shifts import (

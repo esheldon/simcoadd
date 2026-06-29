@@ -13,6 +13,8 @@ class GridLayout(object):
     spacing: galsim.Angle
         Spacing of the lattice
         e.g. 9.5 arcsec = 47.5 pixels for pixel_scale=0.2
+    pixel_scale: float
+        The pixel scale in arcsec / pixel
     """
 
     def __init__(self, rng, dim, buff, spacing, pixel_scale):
@@ -34,7 +36,7 @@ class GridLayout(object):
         return len(self.shifts)
 
 
-def get_grid_shifts(rng, dim, buff, pixel_scale, spacing):
+def get_grid_shifts(rng, dim, buff, spacing, pixel_scale):
     """
     get a set of gridded shifts, with random shifts at the pixel scale
 
@@ -46,10 +48,10 @@ def get_grid_shifts(rng, dim, buff, pixel_scale, spacing):
         Dimensions of the final image
     buff: int
         Buffer region where no objects will be drawn.
-    pixel_scale: float
-        pixel scale
     spacing: galsim.Angle
         Spacing of the lattice
+    pixel_scale: float
+        pixel scale
 
     Returns
     -------
