@@ -57,7 +57,7 @@ class PowerSpectrumPSF(object):
     ):
         self._rng = rng
         self._im_cen = (im_width - 1) / 2
-        self._scale = pixel_scale
+        self._pixel_scale = pixel_scale
         self._tot_width = im_width + 2 * buff
         self._x_scale = 2.0 / self._tot_width / pixel_scale
         self._noise_level = noise_level
