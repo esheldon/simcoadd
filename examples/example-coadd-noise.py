@@ -5,7 +5,7 @@ from mpl_toolkits.axes_grid1 import make_axes_locatable
 
 
 def main():
-    rng = np.random.RandomState(83832)
+    rng = np.random.RandomState(32)
 
     sigmas = rng.normal(scale=0.05, loc=1.0, size=100)
 
