@@ -1,3 +1,6 @@
+"""
+Code for making ngmix Observations
+"""
 from .psfs import draw_psf_image
 
 
@@ -8,6 +11,27 @@ def make_obs(
     noise_field,
     psf_noise_field,
 ):
+    """
+    Create an ngmix Observation from the input data
+
+    Parameters
+    ----------
+    image: galsim Image
+        The image into which the objects are drawn
+    psf: psf object
+        Can be a galsim GSObject or an object with a get_psf(position) method
+    psf_dim: int
+        Dimension of the PSF, so final image has dimensions [psf_dim, psf_dim]
+    noise_field: a noise field
+        e.g. simcoadd.WhiteNoiseField
+    psf_noise_field: a noise field
+        e.g. simcoadd.WhiteNoiseField
+
+    Returns
+    -------
+    ngmix.Observation
+        with a new image set for use with metadetection
+    """
     import ngmix
 
     imshape = image.array.shape

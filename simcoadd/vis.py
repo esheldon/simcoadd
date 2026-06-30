@@ -1,3 +1,8 @@
+"""
+visualization tools
+"""
+
+
 def show_image(
     image,
     noise=None,
@@ -6,6 +11,24 @@ def show_image(
     show=False,
     outfile=None,
 ):
+    """
+    Plot the input image
+
+    Parameters
+    ----------
+    image: array
+        Array [ny, nx] to plot
+    noise: float, optional
+        A noise level, used to generate an AsinhStretch for the image plot
+    style: str, optional
+        Optional style for matplotlib, e.g. 'dark_background'
+    cmap: str, optional
+        Default is 'gray'
+    show: bool, optional
+        If set to True, show the plot on the screen
+    outfile: str, optional
+        If sent, the plot is written to the file
+    """
     import matplotlib.pyplot as mplt
     from astropy.visualization import AsinhStretch, ImageNormalize
 

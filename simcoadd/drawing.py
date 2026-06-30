@@ -4,6 +4,24 @@ def draw(
     obj_data,
     shear,
 ):
+    """
+    Draw the objects into the input image
+
+    Parameters
+    ----------
+    image: galsim Image
+        The image into which the objects are drawn
+    psf: psf object
+        Can be a galsim GSObject or an object with a get_psf(position) method
+    obj_data: list
+        List of dicts carrying
+            obj: GSObject
+            shift: The shift to apply to the object
+            redshift: float or None, not yet used
+            index: index into original catalog or None
+    shear: galsim.Shear
+        The shear to apply.  In the future this will allow other types.
+    """
 
     import galsim
 

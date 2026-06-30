@@ -1,17 +1,8 @@
+"""
+Generate shear objects.  These are not yet used.
+"""
 import galsim
 import numpy as np
-
-
-def _ternary(n, n_bins):
-    """CREDIT: https://stackoverflow.com/questions/34559663/\
-        convert-decimal-to-ternarybase3-in-python"""
-    if n == 0:
-        return '0'
-    nums = []
-    while n:
-        n, r = divmod(n, 3)
-        nums.append(str(r))
-    return ''.join(reversed(nums)).zfill(n_bins)
 
 
 class ShearConstant(object):
@@ -220,3 +211,15 @@ def _get_shear_res_dict(gso, lensed_shift, gamma1, gamma2, kappa):
         "kappa": kappa,
     }
     return shear_res_dict
+
+
+def _ternary(n, n_bins):
+    """CREDIT: https://stackoverflow.com/questions/34559663/\
+        convert-decimal-to-ternarybase3-in-python"""
+    if n == 0:
+        return '0'
+    nums = []
+    while n:
+        n, r = divmod(n, 3)
+        nums.append(str(r))
+    return ''.join(reversed(nums)).zfill(n_bins)

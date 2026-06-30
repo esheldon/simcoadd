@@ -1,3 +1,8 @@
+"""
+WCS code
+"""
+
+
 def make_wcs(
     pixel_scale,
     image_origin,
@@ -5,7 +10,7 @@ def make_wcs(
     theta,
 ):
     """
-    This function generates a single exposure galsim WCS
+    This function generates a galsim WCS
 
     Parameters
     ----------
