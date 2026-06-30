@@ -32,7 +32,6 @@ def main():
         theta=None,
     )
 
-    # for grid layout, dim and spacing determine number of objects
     layout = simcoadd.RandomLayout(
         rng=rng,
         dim=dim,

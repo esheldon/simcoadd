@@ -98,7 +98,6 @@ def test_wldb_random_smoke():
         theta=None,
     )
 
-    # for grid layout, dim and spacing determine number of objects
     layout = simcoadd.RandomLayout(
         rng=rng,
         dim=dim,
@@ -158,7 +157,6 @@ def test_wldb_random_ps_smoke():
         theta=None,
     )
 
-    # for grid layout, dim and spacing determine number of objects
     layout = simcoadd.RandomLayout(
         rng=rng,
         dim=dim,
