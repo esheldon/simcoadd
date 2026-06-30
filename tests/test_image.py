@@ -126,3 +126,70 @@ def test_wldb_random_smoke():
     )
 
     gsimage.array[:, :] += noise_field.get_noise(gsimage.array.shape)
+
+
+def test_wldb_random_ps_smoke():
+    """
+    smoke test using Moffat PSF, LSST survey, random layout, wldb
+    galaxy catalog, white noise field
+    """
+    seed = 8945
+    dim = 350
+    buff = 50
+
+    rng = np.random.RandomState(seed)
+    shear = galsim.Shear(g1=0.02, g2=0.0)
+
+    survey = simcoadd.WLDeblendSurvey(
+        band='i',
+        survey_name='LSST',
+    )
+
+    cen = (dim - 1.0) / 2.0
+    image_origin = galsim.PositionD(cen, cen)
+    world_origin = galsim.CelestialCoord(
+        ra=18.0 * galsim.degrees,
+        dec=-12.0 * galsim.degrees,
+    )
+    wcs = simcoadd.make_wcs(
+        pixel_scale=survey.pixel_scale,
+        image_origin=image_origin,
+        world_origin=world_origin,
+        theta=None,
+    )
+
+    # for grid layout, dim and spacing determine number of objects
+    layout = simcoadd.RandomLayout(
+        rng=rng,
+        dim=dim,
+        buff=buff,
+        density=simcoadd.galaxies.get_wldb_density(),
+        pixel_scale=survey.pixel_scale,
+    )
+
+    galaxies = simcoadd.WLDeblendGalaxyCatalog(
+        rng=rng,
+        layout=layout,
+    )
+
+    noise_field = simcoadd.WhiteNoiseField(rng=rng, sigma=survey.noise)
+
+    obj_data = galaxies.get_obj_data(survey)
+
+    gsimage = galsim.Image(dim, dim, wcs=wcs, dtype=float)
+
+    psf = simcoadd.PowerSpectrumPSF(
+        rng=rng,
+        im_width=dim,
+        buff=dim // 2,
+        pixel_scale=survey.pixel_scale,
+    )
+
+    simcoadd.draw(
+        image=gsimage,
+        psf=psf,
+        obj_data=obj_data,
+        shear=shear,
+    )
+
+    gsimage.array[:, :] += noise_field.get_noise(gsimage.array.shape)
