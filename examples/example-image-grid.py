@@ -47,7 +47,7 @@ def main():
         mag=22,
     )
 
-    noise_field = simcoadd.WhiteNoiseField(rng=rng, sigma=survey.noise)
+    noise_gen = simcoadd.WhiteNoiseField(rng=rng, sigma=survey.noise)
 
     obj_data = galaxies.get_obj_data(survey)
 
@@ -60,11 +60,12 @@ def main():
         shear=shear,
     )
 
-    gsimage.array[:, :] += noise_field.get_noise(gsimage.array.shape)
+    noise, weight = noise_gen.get_noise_and_weight(gsimage.array.shape)
+    gsimage.array[:, :] += noise
 
     simcoadd.vis.show_image(
         image=gsimage.array,
-        noise=noise_field.sigma,
+        noise=noise_gen.sigma,
         show=True,
         style='dark_background',
     )

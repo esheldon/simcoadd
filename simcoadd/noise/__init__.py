@@ -3,6 +3,9 @@
 from . import white
 from .white import WhiteNoiseField
 
+from . import coadd
+from .coadd import CoaddNoiseField
+
 # from . import shifts
 # from .shifts import (
 #     get_pair_shifts,
