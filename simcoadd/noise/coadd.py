@@ -24,9 +24,6 @@ class CoaddNoiseField:
         self._p_edge = p_edge
         self._pixel_scale = pixel_scale
 
-        self._noise = None
-        self._weight = None
-
     @property
     def nepoch(self):
         return len(self._sigmas)

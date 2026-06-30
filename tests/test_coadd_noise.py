@@ -3,9 +3,9 @@ import simcoadd
 
 
 def test_coadd_noise():
-    rng = np.random.RandomState(21283)
+    rng = np.random.RandomState(83832)
 
-    sigmas = [1.5, 1.4]
+    sigmas = rng.normal(scale=0.05, loc=1.0, size=10)
 
     noise_field = simcoadd.CoaddNoiseField(
         rng=rng,
