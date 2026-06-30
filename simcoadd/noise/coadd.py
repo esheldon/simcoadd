@@ -3,9 +3,9 @@ Coadd noise
 """
 
 
-class CoaddNoiseField:
+class SimpleCoaddNoiseField:
     """
-    Generate noise for a coadd
+    Generate noise for a coadd.  No complex wcs
 
     Parameters
     ----------

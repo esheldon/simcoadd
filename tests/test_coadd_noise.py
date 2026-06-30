@@ -7,7 +7,8 @@ def test_coadd_noise():
 
     sigmas = rng.normal(scale=0.05, loc=1.0, size=10)
 
-    noise_field = simcoadd.CoaddNoiseField(
+    # Only correct for conformal WCS (pixel scale)
+    noise_field = simcoadd.SimpleCoaddNoiseField(
         rng=rng,
         sigmas=sigmas,
         p_edge=0.2,
