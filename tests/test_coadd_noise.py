@@ -2,7 +2,7 @@ import numpy as np
 import simcoadd
 
 
-def test_coadd_noise():
+def test_simple_coadd_noise():
     rng = np.random.RandomState(83832)
 
     sigmas = rng.normal(scale=0.05, loc=1.0, size=10)

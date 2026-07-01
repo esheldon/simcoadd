@@ -3,6 +3,238 @@ Coadd noise
 """
 
 
+class CoaddNoiseField:
+    """
+    Generate noise for a coadd.  No complex wcs
+
+    Parameters
+    ----------
+    noise_fields: list of noise fields
+        List of noise fields, e.g. WhiteNoiseField
+    p_edge: float
+        Probability of an edge going through the coadd region.
+        For LSST coadd cells this is about 0.2
+    rng: np.random.RandomState
+        The random number generator
+    """
+
+    def __init__(self, noise_fields, p_edge, rng):
+        self._noise_fields = noise_fields
+        self._p_edge = p_edge
+        self._rng = rng
+
+    @property
+    def nepoch(self):
+        return len(self._noise_fields)
+
+    @property
+    def p_edge(self):
+        return self._p_edge
+
+    def add(self, image):
+        """
+        Add noise to the input galsim image and return the weight map.  Noise
+        realizations are drawn from the input fields with random rotations and
+        pixel-level dithers.
+
+        Parameters
+        ----------
+        image: galsim Image
+            The image in which to add the noise
+
+        Returns
+        -------
+        weight: array
+            An array of 1 / sigma ** 2 with the input dimensions
+        """
+        # list of dict with 'noise' and 'weight'
+        noise_data = generate_dithered_noises(
+            coadd_image=image,
+            noise_fields=self._noise_fields,
+            rng=self._rng,
+        )
+        # modify the weight maps for edge masks
+        apply_random_edge_masks(
+            data=noise_data,
+            p_edge=self.p_edge,
+            rng=self._rng,
+        )
+        # add to the input image
+        wsum = coadd_images(
+            data=noise_data,
+            output_image=image,
+        )
+
+        return wsum
+
+
+def coadd_images(data, output_image):
+    """
+    Warp and add the images
+
+    Parameters
+    ----------
+    data: list
+        List of dict, each holding 'noise' and 'weight'
+    output_image: galsim.Image
+        The image to which the images are added
+
+    Returns
+    -------
+    wsum: galsim.Image
+        The sum over the weights
+    """
+    from numpy import where
+
+    wsum = data[0]['image'] * 0
+
+    for this_data in data:
+        resampled_image = output_image.copy()
+
+        # this overwrites resampled_image
+        resample_onto_image(
+            image=this_data['image'],
+            output_image=resampled_image,
+        )
+
+        output_image += this_data['weight'] * resampled_image
+        wsum += this_data['weight']
+
+    output_image.array[:] *= 1.0 / where(wsum.array > 0, wsum.array, 1)
+
+    return wsum
+
+
+def apply_random_edge_masks(data, p_edge, rng):
+    """
+    Mask the input data with random edge masks.  Only the weight
+    is modified.
+
+    Parameters
+    ----------
+    data: list
+        list of dict, with each dict having keys
+        noise: galsim.Image
+        weight: galsim.Image holding 1/sigma^2
+    p_edge: float
+        Between 0 and 1
+    rng: np.random.RandomState
+        The random number generator.
+    """
+    import numpy as np
+
+    if p_edge < 0 or p_edge > 1:
+        raise ValueError(f'p_edge {p_edge} not in [0, 1]')
+
+    dims = data[0]['image'].array.shape
+    cen = (np.array(dims) - 1.0) / 2.0
+
+    yy, xx = np.mgrid[
+        0:dims[0],
+        0:dims[1],
+    ]
+    for this_data in data:
+        if rng.uniform() < p_edge:
+            phi = rng.uniform(0.0, 2.0 * np.pi)
+            cosphi = np.cos(phi)
+            sinphi = np.sin(phi)
+            off = rng.uniform(-1.0, 1.0)
+
+            proj = (
+                (xx - cen[1]) * cosphi / (dims[1] / 2.0) +
+                (yy - cen[0]) * sinphi / (dims[0] / 2.0)
+            )
+
+            mask = (proj < off).astype(float)
+            this_data['weight'].array *= mask
+
+
+def generate_dithered_noises(coadd_image, noise_fields, rng):
+    """
+    Generate noise images with spactial and rotational
+    dithers
+
+    coadd_image: galsim.Image
+        The reference coadd image, used as a reference wcs and for determining
+        the noise image size.
+    noise_fields: sequence
+        Sequence of noise fields, e.g. WhiteNoiseField
+    rng: np.random.RandomState
+        A numpy random number generator
+
+    Returns
+    -------
+    list of dict, with each dict having keys
+    noise: galsim.Image
+    weight: galsim.Image holding 1/sigma^2
+    """
+    import numpy as np
+    import galsim
+    from .wcs import dither_wcs
+
+    dim = _get_input_dim(
+        coadd_dims=coadd_image.array.shape,
+    )
+    dims = [dim] * 2
+    center = (np.array(dims) - 1.0) / 2.0
+    new_image_origin = galsim.PositionD(center[1], center[0])
+
+    data = []
+    for noise_field in noise_fields:
+
+        dx, dy = rng.uniform(low=-0.5, high=0.5, size=2)
+        dither_pixels = galsim.PositionD(dx, dy)
+        theta = rng.uniform(low=0, high=360) * galsim.degrees
+
+        wcs = dither_wcs(
+            coadd_wcs=coadd_image.wcs,
+            dither_pixels=dither_pixels,
+            theta=theta,
+            new_image_origin=new_image_origin,
+        )
+        noise_image = galsim.ImageD(
+            dim, dim, wcs=wcs,
+        )
+
+        weight_image = noise_field.add(noise_image)
+
+        data.append({
+            'noise': noise_image,
+            'weight': weight_image,
+        })
+
+    return data
+
+
+def resample_onto_image(image, output_image):
+    """
+    Lanczos-3 resample one image onto the other
+
+    Parameters
+    ----------
+    image: galsim Image
+        The input image
+    output_image: galsim Image
+        The image to write into.  Pixels are overwritten
+    """
+    import galsim
+
+    ii = galsim.InterpolatedImage(
+        image,
+        x_interpolant=galsim.Lanczos(3),
+    )
+
+    # place it: the exposure's center sky position -> its output pixel location
+    world_coord = image.wcs.toWorld(image.true_center)
+    draw_center = output_image.wcs.toImage(world_coord)
+
+    ii.drawImage(
+        image=output_image,
+        center=draw_center,
+        method='no_pixel',
+    )
+
+
 class SimpleCoaddNoiseField:
     """
     Generate noise for a coadd.  No complex wcs
