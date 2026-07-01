@@ -60,12 +60,12 @@ class CoaddNoiseField:
             rng=self._rng,
         )
         # add to the input image
-        wsum = coadd_images(
+        weight = coadd_images(
             data=noise_data,
             output_image=image,
         )
 
-        return wsum
+        return weight
 
 
 def coadd_images(data, output_image):
@@ -81,8 +81,8 @@ def coadd_images(data, output_image):
 
     Returns
     -------
-    wsum: galsim.Image
-        The sum over the weights
+    weight: galsim.Image
+        The final weight image, from the sum over the weights
     """
     from numpy import where
 
