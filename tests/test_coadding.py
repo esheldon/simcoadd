@@ -7,8 +7,8 @@ from simcoadd.coadding import resample_noise_and_weight, coadd_images
 def _make_obj_image(wcs, dim):
     g = galsim.Gaussian(fwhm=1.0)
     return g.drawImage(
-        nx=51,
-        ny=51,
+        nx=dim,
+        ny=dim,
         wcs=wcs,
         dtype=float,
     )
@@ -26,8 +26,9 @@ def test_coadding_smoke():
     coadd_dim = 51
     dim = simcoadd.coadding.get_min_coverage_dim(coadd_dim)
 
-    coadd_cen = (coadd_dim - 1.0) / 2.0
-    cen = (dim - 1.0) / 2.0
+    # galsim wants one offset
+    coadd_cen = (coadd_dim - 1.0) / 2.0 + 1
+    cen = (dim - 1.0) / 2.0 + 1
 
     coadd_image_origin = galsim.PositionD(coadd_cen, coadd_cen)
     image_origin = galsim.PositionD(cen, cen)
@@ -93,7 +94,8 @@ def test_coadding_preserves_flux_nodither():
     """
     coadd_dim = 51
 
-    coadd_cen = (coadd_dim - 1.0) / 2.0
+    # galsim wants 1 offset
+    coadd_cen = (coadd_dim - 1.0) / 2.0 + 1
 
     coadd_image_origin = galsim.PositionD(coadd_cen, coadd_cen)
 
@@ -122,11 +124,20 @@ def test_coadding_preserves_flux_nodither():
         }
         data.append(this_data)
 
-    coadd_image = galsim.ImageD(coadd_dim, coadd_dim, wcs=coadd_wcs)
+    resampled_data = [
+        resample_noise_and_weight(
+            data=this_data,
+            example_image=image,
+        )
+        for this_data in data
+    ]
 
-    simcoadd.coadding.coadd_images(data, coadd_image)
+    coadd_data = coadd_images(resampled_data)
 
-    np.testing.assert_allclose(coadd_image.array.sum(), image.array.sum())
+    np.testing.assert_allclose(
+        coadd_data['image'].array.sum(),
+        image.array.sum(),
+    )
 
 
 def test_coadding_preserves_flux_dither():
@@ -135,8 +146,9 @@ def test_coadding_preserves_flux_dither():
     coadd_dim = 51
     dim = simcoadd.coadding.get_min_coverage_dim(coadd_dim)
 
-    coadd_cen = (coadd_dim - 1.0) / 2.0
-    cen = (dim - 1.0) / 2.0
+    # galsim wants 1 offset
+    coadd_cen = (coadd_dim - 1.0) / 2.0 + 1
+    cen = (dim - 1.0) / 2.0 + 1
 
     coadd_image_origin = galsim.PositionD(coadd_cen, coadd_cen)
     image_origin = galsim.PositionD(cen, cen)
@@ -173,7 +185,7 @@ def test_coadding_preserves_flux_dither():
 
         image = _make_obj_image(wcs=wcs, dim=dim)
         weight = image.copy()
-        weight.array[:, :] = 1.0
+        weight.array[:, :] = weightval
 
         this_data = {
             'image': image,
@@ -184,9 +196,19 @@ def test_coadding_preserves_flux_dither():
         flux_sum += weightval * image.array.sum()
         wsum += weightval
 
-    coadd_image = galsim.ImageD(coadd_dim, coadd_dim, wcs=coadd_wcs)
+    ref_image = galsim.ImageD(coadd_dim, coadd_dim, wcs=coadd_wcs)
 
-    simcoadd.coadding.coadd_images(data, coadd_image)
+    resampled_data = [
+        resample_noise_and_weight(
+            data=this_data,
+            example_image=ref_image,
+        )
+        for this_data in data
+    ]
+
+    coadd_data = coadd_images(resampled_data)
 
     mean_flux = flux_sum / wsum
-    assert abs(coadd_image.array.sum() / mean_flux - 1) < 0.001
+    print("mean_flux:", mean_flux)
+    print("image sum:", coadd_data['image'].array.sum())
+    assert abs(coadd_data['image'].array.sum() / mean_flux - 1) < 0.001

@@ -25,15 +25,13 @@ def coadd_images(data):
     from numpy import where
 
     wsum = data[0]['image'] * 0
-
-    image = data[0]['image'].copy()
-    image *= 0
+    image = data[0]['image'] * 0
 
     for this_data in data:
         image += this_data['weight'] * this_data['image']
         wsum += this_data['weight']
 
-    image.array[:] *= 1.0 / where(wsum.array > 0, wsum.array, 1)
+    image.array[:, :] *= 1.0 / where(wsum.array > 0, wsum.array, 1)
 
     return {
         'image': image,
