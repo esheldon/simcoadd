@@ -12,7 +12,7 @@ from . import galaxies
 from .galaxies import FixedGalaxyCatalog, WLDeblendGalaxyCatalog
 
 from . import noise
-from .noise import WhiteNoiseField, SimpleCoaddNoiseField
+from .noise import WhiteNoiseField, CoaddNoiseField, SimpleCoaddNoiseField
 
 from . import surveys
 from .surveys import BasicSurvey, WLDeblendSurvey

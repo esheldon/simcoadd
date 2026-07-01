@@ -10,8 +10,9 @@ def coadd_images(data):
     Parameters
     ----------
     data: list
-        List of dict, each holding 'image' and 'weight'.  The image and
-        weight should be galsim Images.
+        List of dict, each holding 'image' and 'weight' and optionally a 'mask'
+        entry (1 for use the pixel, 0 for skip).  The entries
+        should all be galsim Images.
 
     Returns
     -------
@@ -28,8 +29,12 @@ def coadd_images(data):
     image = data[0]['image'] * 0
 
     for this_data in data:
-        image += this_data['weight'] * this_data['image']
-        wsum += this_data['weight']
+        weight = this_data['weight']
+        if 'mask' in this_data and this_data['mask'] is not None:
+            weight = weight * this_data['mask']
+
+        image += weight * this_data['image']
+        wsum += weight
 
     image.array[:, :] *= 1.0 / where(wsum.array > 0, wsum.array, 1)
 
@@ -70,7 +75,15 @@ def resample_onto_image(image, output_image):
     )
 
 
-def resample_noise_and_weight(data, example_image):
+def resample_image_and_weight(data, example_image):
+    """
+    Resample the image onto an image represented by the input example.
+
+    Note the weight isn't resampled, it is just passed on based on
+    the median of the non-zero values in the input weight
+    """
+    import numpy as np
+
     rimage = example_image.copy()
     resample_onto_image(
         image=data['image'],
@@ -78,10 +91,10 @@ def resample_noise_and_weight(data, example_image):
     )
 
     rweight = example_image.copy()
-    resample_onto_image(
-        image=data['weight'],
-        output_image=rweight,
-    )
+
+    w = np.where(data['weight'].array > 0)
+    if w[0].size > 0:
+        rweight.array[:, :] = np.median(data['weight'].array[w])
 
     return {
         'image': rimage,

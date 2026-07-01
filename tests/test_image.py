@@ -63,7 +63,7 @@ def test_make_image_smoke():
         shear=shear,
     )
 
-    gsimage.array[:, :] += noise_field.get_noise(gsimage.array.shape)
+    noise_field.add(gsimage)
 
 
 def test_wldb_random_smoke():
@@ -124,7 +124,7 @@ def test_wldb_random_smoke():
         shear=shear,
     )
 
-    gsimage.array[:, :] += noise_field.get_noise(gsimage.array.shape)
+    noise_field.add(gsimage)
 
 
 def test_wldb_random_ps_smoke():
@@ -190,4 +190,4 @@ def test_wldb_random_ps_smoke():
         shear=shear,
     )
 
-    gsimage.array[:, :] += noise_field.get_noise(gsimage.array.shape)
+    noise_field.add(gsimage)

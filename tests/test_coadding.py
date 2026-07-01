@@ -1,7 +1,11 @@
 import numpy as np
 import galsim
 import simcoadd
-from simcoadd.coadding import resample_noise_and_weight, coadd_images
+from simcoadd.coadding import (
+    resample_image_and_weight,
+    resample_onto_image,
+    coadd_images,
+)
 
 
 def _make_obj_image(wcs, dim):
@@ -47,7 +51,6 @@ def test_coadding_smoke():
     nim = 2
     data = []
     for i in range(nim):
-
         dither_pixels = galsim.PositionD(
             rng.uniform(low=-0.5, high=0.5),
             rng.uniform(low=-0.5, high=0.5),
@@ -75,7 +78,7 @@ def test_coadding_smoke():
     ref_image = galsim.ImageD(coadd_dim, coadd_dim, wcs=coadd_wcs)
 
     resampled_data = [
-        resample_noise_and_weight(
+        resample_image_and_weight(
             data=this_data,
             example_image=ref_image,
         )
@@ -113,7 +116,6 @@ def test_coadding_preserves_flux_nodither():
     weights = [2, 3, 5]
     data = []
     for weightval in weights:
-
         image = _make_obj_image(wcs=coadd_wcs, dim=coadd_dim)
         weight = image.copy()
         weight.array[:, :] = weightval
@@ -125,7 +127,7 @@ def test_coadding_preserves_flux_nodither():
         data.append(this_data)
 
     resampled_data = [
-        resample_noise_and_weight(
+        resample_image_and_weight(
             data=this_data,
             example_image=image,
         )
@@ -169,7 +171,6 @@ def test_coadding_preserves_flux_dither():
     flux_sum = 0.0
     wsum = 0.0
     for weightval in weights:
-
         dither_pixels = galsim.PositionD(
             rng.uniform(low=-0.5, high=0.5),
             rng.uniform(low=-0.5, high=0.5),
@@ -199,7 +200,7 @@ def test_coadding_preserves_flux_dither():
     ref_image = galsim.ImageD(coadd_dim, coadd_dim, wcs=coadd_wcs)
 
     resampled_data = [
-        resample_noise_and_weight(
+        resample_image_and_weight(
             data=this_data,
             example_image=ref_image,
         )
@@ -212,3 +213,72 @@ def test_coadding_preserves_flux_dither():
     print("mean_flux:", mean_flux)
     print("image sum:", coadd_data['image'].array.sum())
     assert abs(coadd_data['image'].array.sum() / mean_flux - 1) < 0.001
+
+
+def test_resample_large_offset():
+    """
+    resample a gaussian image onto a grid with a large offset, placing the
+    object at a fixed sky position, and check the residuals against a direct
+    rendering are at the level expected for lanczos3 interpolation
+    """
+    coadd_dim = 51
+    dim = 101
+
+    # a large offset between the grid origins, with near half pixel
+    # fractional parts, the worst case for the interpolation
+    offset = galsim.PositionD(11.53, -7.48)
+
+    # galsim wants 1 offset
+    coadd_cen = (coadd_dim - 1.0) / 2.0 + 1
+    cen = (dim - 1.0) / 2.0 + 1
+
+    coadd_image_origin = galsim.PositionD(coadd_cen, coadd_cen)
+    image_origin = galsim.PositionD(cen + offset.x, cen + offset.y)
+
+    world_origin = galsim.CelestialCoord(
+        ra=18.0 * galsim.degrees,
+        dec=-12.0 * galsim.degrees,
+    )
+    coadd_wcs = simcoadd.make_wcs(
+        pixel_scale=0.2,
+        image_origin=coadd_image_origin,
+        world_origin=world_origin,
+        theta=None,
+    )
+    wcs = simcoadd.make_wcs(
+        pixel_scale=0.2,
+        image_origin=image_origin,
+        world_origin=world_origin,
+        theta=None,
+    )
+
+    obj = galsim.Gaussian(fwhm=1.0)
+
+    # the object is drawn at the same sky position on both grids
+    image = galsim.ImageD(dim, dim, wcs=wcs)
+    obj.drawImage(
+        image=image,
+        center=wcs.toImage(world_origin),
+        method='no_pixel',
+    )
+
+    resampled = galsim.ImageD(coadd_dim, coadd_dim, wcs=coadd_wcs)
+    resample_onto_image(image=image, output_image=resampled)
+
+    expected = galsim.ImageD(coadd_dim, coadd_dim, wcs=coadd_wcs)
+    obj.drawImage(
+        image=expected,
+        center=coadd_wcs.toImage(world_origin),
+        method='no_pixel',
+    )
+
+    # measured lanczos3 residual for this configuration is about 4.2e-3 of
+    # the peak
+    maxdiff = np.abs(resampled.array - expected.array).max()
+    assert maxdiff / expected.array.max() < 5.0e-3
+
+    np.testing.assert_allclose(
+        resampled.array.sum(),
+        expected.array.sum(),
+        rtol=1.0e-4,
+    )

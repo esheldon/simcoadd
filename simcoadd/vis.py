@@ -10,6 +10,8 @@ def show_image(
     cmap='gray',
     show=False,
     outfile=None,
+    colorbar=False,
+    figax=None,
 ):
     """
     Plot the input image
@@ -33,9 +35,10 @@ def show_image(
     from astropy.visualization import AsinhStretch, ImageNormalize
 
     def _doplot():
-        fig, ax = mplt.subplots(
-            figsize=(8, 8),
-        )
+        if figax is not None:
+            fig, ax = figax
+        else:
+            fig, ax = mplt.subplots(figsize=(8, 8))
 
         if noise is not None:
             vmin, vmax = image.min(), image.max()
@@ -44,7 +47,16 @@ def show_image(
                 vmin=vmin, vmax=vmax,
                 stretch=AsinhStretch(a),
             )
-            ax.imshow(image, norm=norm, cmap=cmap)
+        else:
+            norm = None
+
+        if colorbar:
+            imshow_with_colorbar(
+                image,
+                norm=norm,
+                cmap=cmap,
+                figax=(fig, ax),
+            )
         else:
             ax.imshow(image, cmap=cmap)
 
@@ -55,10 +67,26 @@ def show_image(
             print('writing:', outfile)
             fig.savefig(outfile, dpi=150)
 
-        mplt.close(fig)
-
     if style is None:
         _doplot()
     else:
         with mplt.style.context(style):
             _doplot()
+
+    if figax is None:
+        mplt.close()
+
+
+def imshow_with_colorbar(image, norm=None, cmap='gray', figax=None):
+    import matplotlib.pyplot as mplt
+    from mpl_toolkits.axes_grid1 import make_axes_locatable
+
+    if figax is not None:
+        fig, ax = figax
+    else:
+        fig, ax = mplt.subplots(figsize=(8, 8))
+
+    cim = ax.imshow(image, norm=norm, cmap=cmap)
+    divider = make_axes_locatable(ax)
+    cax = divider.append_axes("right", size="5%", pad=0.05)
+    fig.colorbar(cim, cax=cax)

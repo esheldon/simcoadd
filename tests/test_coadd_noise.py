@@ -1,5 +1,7 @@
 import numpy as np
+import galsim
 import simcoadd
+from simcoadd import WhiteNoiseField
 
 
 def test_simple_coadd_noise():
@@ -40,8 +42,27 @@ def test_coadd_noise():
         p_edge=0.2,
     )
 
-    dims = (250, 250)
-    noise, weight = coadd_noise_field.get_noise_and_weight(dims)
+    dim = 250
+
+    # galsim wants 1 offset
+    cen = (dim - 1.0) / 2.0 + 1
+
+    image_origin = galsim.PositionD(cen, cen)
+
+    world_origin = galsim.CelestialCoord(
+        ra=18.0 * galsim.degrees,
+        dec=-12.0 * galsim.degrees,
+    )
+    wcs = simcoadd.make_wcs(
+        pixel_scale=0.2,
+        image_origin=image_origin,
+        world_origin=world_origin,
+        theta=30 * galsim.degrees,
+    )
+
+    image = galsim.Image(dim, dim, dtype=float, wcs=wcs)
+
+    weight = coadd_noise_field.add(image)
 
     # std = noise.std()
     # assert abs(std / noise_sigma - 1) < 0.01
