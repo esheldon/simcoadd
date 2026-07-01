@@ -47,90 +47,101 @@ class CoaddNoiseField:
         weight: array
             An array of 1 / sigma ** 2 with the input dimensions
         """
-        from ..coadding import coadd_images
+        from ..coadding import resample_noise_and_weight, coadd_images
 
-        # list of dict with 'noise' and 'weight'
-        noise_data = generate_dithered_noises(
-            coadd_image=image,
-            noise_fields=self._noise_fields,
-            rng=self._rng,
-        )
+        # list of dict with keys 'image' and 'weight'
+        noise_data = [
+            generate_dithered_noise(
+                coadd_image=image,
+                noise_field=noise_field,
+                rng=self._rng,
+            )
+            for noise_field in self._noise_fields
+        ]
+
+        # list of dict with keys 'image' and 'weight'
+        resampled_data = [
+            resample_noise_and_weight(
+                data=this_data,
+                example_image=image,
+            )
+            for this_data in noise_data
+        ]
+
         # modify the weight maps for edge masks
-        apply_random_edge_masks(
-            data=noise_data,
-            p_edge=self.p_edge,
-            rng=self._rng,
-        )
+        for this_data in resampled_data:
+            if self._rng.uniform() < self.p_edge:
+                mask = get_random_edge_mask(
+                    dims=this_data['weight'].array.shape,
+                    rng=self._rng,
+                )
+                this_data['weight'].array *= mask
+
         # add to the input image
-        weight = coadd_images(
-            data=noise_data,
-            output_image=image,
-        )
+        coadd_data = coadd_images(resampled_data)
 
-        return weight
+        image += coadd_data['image']
+
+        return coadd_data['weight']
 
 
-def apply_random_edge_masks(data, p_edge, rng):
+def get_random_edge_mask(dims, rng):
     """
-    Mask the input data with random edge masks.  Only the weight
-    is modified.
+    Get a randomized edge mask
 
     Parameters
     ----------
-    data: list
-        list of dict, with each dict having keys
-        noise: galsim.Image
-        weight: galsim.Image holding 1/sigma^2
-    p_edge: float
-        Between 0 and 1
+    dims: [ny, nx]
+        Dimensions of image to be masked
     rng: np.random.RandomState
         The random number generator.
+
+    Returns
+    -------
+    mask:
+        array if size [ny, nx], set to 1 if keep, 0 if out
     """
     import numpy as np
 
-    if p_edge < 0 or p_edge > 1:
-        raise ValueError(f'p_edge {p_edge} not in [0, 1]')
-
-    dims = data[0]['image'].array.shape
     cen = (np.array(dims) - 1.0) / 2.0
 
     yy, xx = np.mgrid[
         0:dims[0],
         0:dims[1],
     ]
-    for this_data in data:
-        if rng.uniform() < p_edge:
-            phi = rng.uniform(0.0, 2.0 * np.pi)
-            cosphi = np.cos(phi)
-            sinphi = np.sin(phi)
-            off = rng.uniform(-1.0, 1.0)
 
-            proj = (
-                (xx - cen[1]) * cosphi / (dims[1] / 2.0) +
-                (yy - cen[0]) * sinphi / (dims[0] / 2.0)
-            )
+    phi = rng.uniform(0.0, 2.0 * np.pi)
+    cosphi = np.cos(phi)
+    sinphi = np.sin(phi)
+    off = rng.uniform(-1.0, 1.0)
 
-            mask = (proj < off).astype(float)
-            this_data['weight'].array *= mask
+    proj = (
+        (xx - cen[1]) * cosphi / (dims[1] / 2.0) +
+        (yy - cen[0]) * sinphi / (dims[0] / 2.0)
+    )
+
+    return (proj < off).astype(float)
 
 
-def generate_dithered_noises(coadd_image, noise_fields, rng):
+def generate_dithered_noise(coadd_image, noise_field, rng):
     """
-    Generate noise images with spactial and rotational
-    dithers
+    Generate a noise image with a random spacial and rotational dither relative
+    to the input coadd_image
 
+    Parameters
+    ----------
     coadd_image: galsim.Image
         The reference coadd image, used as a reference wcs and for determining
         the noise image size.
-    noise_fields: sequence
-        Sequence of noise fields, e.g. WhiteNoiseField
+    noise_field: noise field
+        e.g. WhiteNoiseField
     rng: np.random.RandomState
         A numpy random number generator
 
     Returns
     -------
-    list of dict, with each dict having keys
-    noise: galsim.Image
+    dict, with keys
+    image: galsim.Image
     weight: galsim.Image holding 1/sigma^2
     """
     import numpy as np
@@ -144,31 +155,26 @@ def generate_dithered_noises(coadd_image, noise_fields, rng):
     center = (np.array(dims) - 1.0) / 2.0
     new_image_origin = galsim.PositionD(center[1], center[0])
 
-    data = []
-    for noise_field in noise_fields:
+    dx, dy = rng.uniform(low=-0.5, high=0.5, size=2)
+    dither_pixels = galsim.PositionD(dx, dy)
+    theta = rng.uniform(low=0, high=360) * galsim.degrees
 
-        dx, dy = rng.uniform(low=-0.5, high=0.5, size=2)
-        dither_pixels = galsim.PositionD(dx, dy)
-        theta = rng.uniform(low=0, high=360) * galsim.degrees
+    wcs = dither_wcs(
+        coadd_wcs=coadd_image.wcs,
+        dither_pixels=dither_pixels,
+        theta=theta,
+        new_image_origin=new_image_origin,
+    )
+    noise_image = galsim.ImageD(
+        dim, dim, wcs=wcs,
+    )
 
-        wcs = dither_wcs(
-            coadd_wcs=coadd_image.wcs,
-            dither_pixels=dither_pixels,
-            theta=theta,
-            new_image_origin=new_image_origin,
-        )
-        noise_image = galsim.ImageD(
-            dim, dim, wcs=wcs,
-        )
+    weight_image = noise_field.add(noise_image)
 
-        weight_image = noise_field.add(noise_image)
-
-        data.append({
-            'noise': noise_image,
-            'weight': weight_image,
-        })
-
-    return data
+    return {
+        'image': noise_image,
+        'weight': weight_image,
+    }
 
 
 class SimpleCoaddNoiseField:

@@ -1,6 +1,7 @@
 import numpy as np
 import galsim
 import simcoadd
+from simcoadd.coadding import resample_noise_and_weight, coadd_images
 
 
 def _make_obj_image(wcs, dim):
@@ -69,9 +70,20 @@ def test_coadding_smoke():
         }
         data.append(this_data)
 
-    coadd_image = galsim.ImageD(coadd_dim, coadd_dim, wcs=coadd_wcs)
+    # used as a reference for shape and wcs
+    ref_image = galsim.ImageD(coadd_dim, coadd_dim, wcs=coadd_wcs)
 
-    simcoadd.coadding.coadd_images(data, coadd_image)
+    resampled_data = [
+        resample_noise_and_weight(
+            data=this_data,
+            example_image=ref_image,
+        )
+        for this_data in data
+    ]
+
+    coadd_data = coadd_images(resampled_data)
+    assert 'image' in coadd_data
+    assert 'weight' in coadd_data
 
 
 def test_coadding_preserves_flux_nodither():

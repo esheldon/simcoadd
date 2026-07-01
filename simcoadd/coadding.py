@@ -3,42 +3,42 @@ import galsim
 X_INTERPOLANT = galsim.Lanczos(3)
 
 
-def coadd_images(data, output_image):
+def coadd_images(data):
     """
-    Warp and add the images
+    Make a weighted mean of the input the images
 
     Parameters
     ----------
     data: list
         List of dict, each holding 'image' and 'weight'.  The image and
         weight should be galsim Images.
-    output_image: galsim.Image
-        The image to which the images are added
 
     Returns
     -------
-    weight: galsim.Image
-        The final weight image, from the sum over the weights
+    dict with keys
+
+        image: galsim.Image
+            The weighted mean image
+        weight: galsim.Image
+            The final weight image, from the sum over the weights
     """
     from numpy import where
 
     wsum = data[0]['image'] * 0
 
+    image = data[0]['image'].copy()
+    image *= 0
+
     for this_data in data:
-        resampled_image = output_image.copy()
-
-        # this overwrites resampled_image
-        resample_onto_image(
-            image=this_data['image'],
-            output_image=resampled_image,
-        )
-
-        output_image += this_data['weight'] * resampled_image
+        image += this_data['weight'] * this_data['image']
         wsum += this_data['weight']
 
-    output_image.array[:] *= 1.0 / where(wsum.array > 0, wsum.array, 1)
+    image.array[:] *= 1.0 / where(wsum.array > 0, wsum.array, 1)
 
-    return wsum
+    return {
+        'image': image,
+        'weight': wsum,
+    }
 
 
 def resample_onto_image(image, output_image):
@@ -70,6 +70,25 @@ def resample_onto_image(image, output_image):
         center=draw_center,
         method='no_pixel',
     )
+
+
+def resample_noise_and_weight(data, example_image):
+    rimage = example_image.copy()
+    resample_onto_image(
+        image=data['image'],
+        output_image=rimage,
+    )
+
+    rweight = example_image.copy()
+    resample_onto_image(
+        image=data['weight'],
+        output_image=rweight,
+    )
+
+    return {
+        'image': rimage,
+        'weight': rweight,
+    }
 
 
 def get_min_coverage_dim(dims, kernel_size=3, shift_margin=2):
