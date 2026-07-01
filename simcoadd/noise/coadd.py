@@ -47,6 +47,8 @@ class CoaddNoiseField:
         weight: array
             An array of 1 / sigma ** 2 with the input dimensions
         """
+        from ..coadding import coadd_images
+
         # list of dict with 'noise' and 'weight'
         noise_data = generate_dithered_noises(
             coadd_image=image,
@@ -66,43 +68,6 @@ class CoaddNoiseField:
         )
 
         return weight
-
-
-def coadd_images(data, output_image):
-    """
-    Warp and add the images
-
-    Parameters
-    ----------
-    data: list
-        List of dict, each holding 'noise' and 'weight'
-    output_image: galsim.Image
-        The image to which the images are added
-
-    Returns
-    -------
-    weight: galsim.Image
-        The final weight image, from the sum over the weights
-    """
-    from numpy import where
-
-    wsum = data[0]['image'] * 0
-
-    for this_data in data:
-        resampled_image = output_image.copy()
-
-        # this overwrites resampled_image
-        resample_onto_image(
-            image=this_data['image'],
-            output_image=resampled_image,
-        )
-
-        output_image += this_data['weight'] * resampled_image
-        wsum += this_data['weight']
-
-    output_image.array[:] *= 1.0 / where(wsum.array > 0, wsum.array, 1)
-
-    return wsum
 
 
 def apply_random_edge_masks(data, p_edge, rng):
@@ -204,35 +169,6 @@ def generate_dithered_noises(coadd_image, noise_fields, rng):
         })
 
     return data
-
-
-def resample_onto_image(image, output_image):
-    """
-    Lanczos-3 resample one image onto the other
-
-    Parameters
-    ----------
-    image: galsim Image
-        The input image
-    output_image: galsim Image
-        The image to write into.  Pixels are overwritten
-    """
-    import galsim
-
-    ii = galsim.InterpolatedImage(
-        image,
-        x_interpolant=galsim.Lanczos(3),
-    )
-
-    # place it: the exposure's center sky position -> its output pixel location
-    world_coord = image.wcs.toWorld(image.true_center)
-    draw_center = output_image.wcs.toImage(world_coord)
-
-    ii.drawImage(
-        image=output_image,
-        center=draw_center,
-        method='no_pixel',
-    )
 
 
 class SimpleCoaddNoiseField:

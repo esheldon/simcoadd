@@ -62,7 +62,7 @@ def rotate_matrix(matrix, theta):
 
 
 def dither_wcs(
-    coadd_wcs,
+    wcs,
     dither_pixels,
     theta,
     new_image_origin,
@@ -85,21 +85,24 @@ def dither_wcs(
     import numpy as np
     import galsim
 
-    cd = coadd_wcs.cd
-    crpix = coadd_wcs.crpix
-    world_origin = coadd_wcs.center
+    cd = wcs.cd
+    crpix = wcs.crpix
+    world_origin = wcs.center
 
     # Parity-correct defining affine (deg/pixel): the affine GalSim expects has
     # its RA axis flipped relative to the CD matrix, so negate cd's first row.
-    J = np.array([[-cd[0, 0], -cd[0, 1]],
-                  [ cd[1, 0],  cd[1, 1]]])
+    J = np.array(
+        [[-cd[0, 0], -cd[0, 1]],
+         [+cd[1, 0], +cd[1, 1]]]
+    )
 
     # Shift the world origin: move it to where (crpix + dither) pointed.
     # convert dx, dy to du, dv
-    du, dv = J @ np.asarray(dither_pixels)
+    dither_array = np.array([dither_pixels.x, dither_pixels.y])
+    du, dv = J @ dither_array
     new_world_origin = world_origin.deproject(
-        du*galsim.degrees,
-        dv*galsim.degrees,
+        du * galsim.degrees,
+        dv * galsim.degrees,
         projection='gnomonic',
     )
 
