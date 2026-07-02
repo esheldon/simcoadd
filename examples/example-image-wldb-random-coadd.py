@@ -82,7 +82,7 @@ def main():
         fig, axs = mplt.subplots(ncols=2, figsize=(10, 5))
 
         axs[0].set_title('image')
-        axs[1].set_title(f'noise sigma nepoch = {nepoch}')
+        axs[1].set_title(r'noise $\sigma$')
 
         noise_sigma = np.sqrt(1 / weight.array)
 

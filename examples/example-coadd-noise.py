@@ -48,8 +48,8 @@ def main():
     with mplt.style.context('dark_background'):
         fig, axs = mplt.subplots(ncols=2, figsize=(10, 5))
 
-        axs[0].set_title(f'coadd noise nepoch = {nepoch}')
-        axs[1].set_title('noise sigma')
+        axs[0].set_title('coadd noise')
+        axs[1].set_title(r'noise $\sigma$')
 
         vis.show_image(
             noise_image.array,
