@@ -60,8 +60,7 @@ def main():
         shear=shear,
     )
 
-    noise, weight = noise_gen.get_noise_and_weight(gsimage.array.shape)
-    gsimage.array[:, :] += noise
+    noise_gen.add_to(gsimage)
 
     simcoadd.vis.show_image(
         image=gsimage.array,

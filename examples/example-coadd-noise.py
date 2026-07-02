@@ -1,41 +1,70 @@
 import numpy as np
+import galsim
 import simcoadd
+from simcoadd import vis, WhiteNoiseField
 import matplotlib.pyplot as mplt
-from mpl_toolkits.axes_grid1 import make_axes_locatable
 
 
 def main():
     rng = np.random.RandomState(3253)
 
-    sigmas = rng.normal(scale=0.05, loc=1.0, size=100)
+    nepoch = 100
+    sigmas = rng.normal(scale=0.05, loc=1.0, size=nepoch)
+
+    dim = 350
+    noise_fields = [
+        WhiteNoiseField(rng=rng, sigma=sigma)
+        for sigma in sigmas
+    ]
 
     # Only correct for conformal WCS (pixel scale)
-    noise_field = simcoadd.SimpleCoaddNoiseField(
-        rng=rng,
-        sigmas=sigmas,
+    noise_field = simcoadd.CoaddNoiseField(
+        noise_fields=noise_fields,
         p_edge=0.2,
+        dither=True,
+        rotate=True,
+        rng=rng,
+    )
+    # galsim wants 1 offset
+    cen = (dim - 1.0) / 2.0 + 1
+
+    image_origin = galsim.PositionD(cen, cen)
+
+    world_origin = galsim.CelestialCoord(
+        ra=18.0 * galsim.degrees,
+        dec=-12.0 * galsim.degrees,
+    )
+    wcs = simcoadd.make_wcs(
         pixel_scale=0.2,
+        image_origin=image_origin,
+        world_origin=world_origin,
+        theta=30 * galsim.degrees,
     )
 
-    dims = (350, 350)
-    noise, weight = noise_field.get_noise_and_weight(dims)
+    noise_image = galsim.Image(dim, dim, dtype=float, wcs=wcs)
 
-    fig, axs = mplt.subplots(ncols=2)
+    weight = noise_field.add_to(noise_image)
 
-    axs[0].set_title('noise')
-    axs[1].set_title('weight')
+    with mplt.style.context('dark_background'):
+        fig, axs = mplt.subplots(ncols=2, figsize=(10, 5))
 
-    cim0 = axs[0].imshow(noise, cmap='inferno')
-    divider0 = make_axes_locatable(axs[0])
-    cax0 = divider0.append_axes("right", size="5%", pad=0.05)
-    fig.colorbar(cim0, cax=cax0)
+        axs[0].set_title(f'coadd noise nepoch = {nepoch}')
+        axs[1].set_title('noise sigma')
 
-    cim1 = axs[1].imshow(weight, cmap='inferno')
-    divider1 = make_axes_locatable(axs[1])
-    cax1 = divider1.append_axes("right", size="5%", pad=0.05)
-    fig.colorbar(cim1, cax=cax1)
+        vis.show_image(
+            noise_image.array,
+            colorbar=True,
+            figax=(fig, axs[0]),
+        )
+        noise_sigma = np.sqrt(1 / weight.array)
+        vis.show_image(
+            noise_sigma,
+            colorbar=True,
+            cmap='inferno',
+            figax=(fig, axs[1]),
+        )
 
-    mplt.show()
+        mplt.show()
 
 
 if __name__ == '__main__':

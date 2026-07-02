@@ -2,6 +2,7 @@ import numpy as np
 import galsim
 import simcoadd
 from simcoadd.coadding import resample_image_and_weight, coadd_images
+from simcoadd import vis
 import matplotlib.pyplot as mplt
 
 
@@ -44,7 +45,6 @@ def main():
     flux_sum = 0.0
     wsum = 0.0
     for weightval in weights:
-
         dither_pixels = galsim.PositionD(
             rng.uniform(low=-0.5, high=0.5),
             rng.uniform(low=-0.5, high=0.5),
@@ -81,19 +81,39 @@ def main():
         for this_data in data
     ]
 
-    i = 0
-    fig, axs = mplt.subplots(ncols=2, nrows=2)
-    axs[0, 0].imshow(data[i]['image'].array)
-    axs[0, 1].imshow(resampled_data[i]['image'].array)
-    axs[1, 0].imshow(data[i]['weight'].array)
-    axs[1, 1].imshow(resampled_data[i]['weight'].array)
-    mplt.show()
-
     coadd_data = coadd_images(resampled_data)
 
-    fig, ax = mplt.subplots()
-    ax.imshow(coadd_data['image'].array)
-    mplt.show()
+    i = 0
+    with mplt.style.context('dark_background'):
+        fig, axs = mplt.subplots(ncols=2, nrows=2)
+        vis.show_image(
+            data[i]['image'].array,
+            colorbar=True,
+            figax=(fig, axs[0, 0]),
+        )
+        vis.show_image(
+            resampled_data[i]['image'].array,
+            colorbar=True,
+            figax=(fig, axs[0, 1]),
+        )
+        vis.show_image(
+            data[i]['weight'].array,
+            colorbar=True,
+            figax=(fig, axs[1, 0]),
+        )
+        vis.show_image(
+            resampled_data[i]['weight'].array,
+            colorbar=True,
+            figax=(fig, axs[1, 1]),
+        )
+
+        mplt.show()
+
+        vis.show_image(
+            coadd_data['image'].array,
+            colorbar=True,
+            show=True,
+        )
 
     mean_flux = flux_sum / wsum
     print("mean_flux:", mean_flux)

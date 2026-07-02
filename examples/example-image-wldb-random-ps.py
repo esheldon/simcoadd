@@ -63,7 +63,7 @@ def main():
         shear=shear,
     )
 
-    gsimage.array[:, :] += noise_field.get_noise(gsimage.array.shape)
+    noise_field.add_to(gsimage)
 
     simcoadd.vis.show_image(
         image=gsimage.array,
