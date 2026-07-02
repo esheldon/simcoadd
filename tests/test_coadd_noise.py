@@ -26,7 +26,7 @@ def test_simple_coadd_noise():
     # assert np.all(weight == 1.0 / noise_sigma ** 2)
 
 
-def test_coadd_noise():
+def test_coadd_noise_smoke():
     rng = np.random.RandomState(83832)
 
     sigmas = rng.normal(scale=0.05, loc=1.0, size=10)
@@ -40,6 +40,8 @@ def test_coadd_noise():
         rng=rng,
         noise_fields=noise_fields,
         p_edge=0.2,
+        dither=True,
+        rotate=True,
     )
 
     dim = 250
@@ -60,11 +62,62 @@ def test_coadd_noise():
         theta=30 * galsim.degrees,
     )
 
-    image = galsim.Image(dim, dim, dtype=float, wcs=wcs)
+    noise_image = galsim.Image(dim, dim, dtype=float, wcs=wcs)
 
-    weight = coadd_noise_field.add_to(image)
+    coadd_noise_field.add_to(noise_image)
 
-    # std = noise.std()
+    # std = noise_image.array.std()
     # assert abs(std / noise_sigma - 1) < 0.01
-    #
-    # assert np.all(weight == 1.0 / noise_sigma ** 2)
+    # assert np.all(weight.array == 1.0 / noise_sigma ** 2)
+
+
+def test_coadd_noise_error_progagation():
+    """
+    Simple case with no dithering.  Simple error propagation
+    shoudl work
+    """
+    rng = np.random.RandomState(29882)
+
+    sigmas = rng.normal(scale=0.2, loc=1.0, size=10)
+    print(sigmas)
+    noise_fields = [
+        WhiteNoiseField(rng=rng, sigma=sigma)
+        for sigma in sigmas
+    ]
+
+    # Only correct for conformal WCS (pixel scale)
+    coadd_noise_field = simcoadd.CoaddNoiseField(
+        rng=rng,
+        noise_fields=noise_fields,
+        p_edge=0.2,
+        dither=False,
+        rotate=False,
+    )
+
+    dim = 350
+
+    # galsim wants 1 offset
+    cen = (dim - 1.0) / 2.0 + 1
+
+    image_origin = galsim.PositionD(cen, cen)
+
+    world_origin = galsim.CelestialCoord(
+        ra=18.0 * galsim.degrees,
+        dec=-12.0 * galsim.degrees,
+    )
+    wcs = simcoadd.make_wcs(
+        pixel_scale=0.2,
+        image_origin=image_origin,
+        world_origin=world_origin,
+        theta=30 * galsim.degrees,
+    )
+
+    noise_image = galsim.Image(dim, dim, dtype=float, wcs=wcs)
+
+    weight = coadd_noise_field.add_to(noise_image)
+
+    std = noise_image.array.std()
+    expected_std = np.sqrt(1.0 / np.median(weight.array[0, 0]))
+    print('std:', std)
+    print('expected std:', expected_std)
+    assert abs(std / expected_std - 1) < 0.08
