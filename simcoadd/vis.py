@@ -58,7 +58,7 @@ def show_image(
                 figax=(fig, ax),
             )
         else:
-            ax.imshow(image, cmap=cmap)
+            ax.imshow(image, norm=norm, cmap=cmap)
 
         if show:
             mplt.show()
