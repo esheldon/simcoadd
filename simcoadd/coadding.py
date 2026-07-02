@@ -95,6 +95,8 @@ def resample_image_and_weight(data, example_image):
     w = np.where(data['weight'].array > 0)
     if w[0].size > 0:
         rweight.array[:, :] = np.median(data['weight'].array[w])
+    else:
+        rweight.array[:, :] = 0.0
 
     return {
         'image': rimage,
@@ -129,5 +131,10 @@ def get_min_coverage_dim(dims, kernel_size=3, shift_margin=2):
 
     d = int(np.ceil(maxdim * np.sqrt(2))) + 2 * kernel_size + shift_margin
 
-    # return d + (d % 2)
+    # match the parity of the target dimension so that the grid centers
+    # align at zero sub-pixel phase; otherwise an undithered warp would
+    # sample at half-pixel offsets and smooth the image
+    if d % 2 != maxdim % 2:
+        d += 1
+
     return d
