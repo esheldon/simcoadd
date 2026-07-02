@@ -10,6 +10,7 @@ def test_obs_smoke():
 
     seed = 9832
     dim = 350
+    psf_dim = 51
     buff = 50
 
     rng = np.random.RandomState(seed)
@@ -57,20 +58,13 @@ def test_obs_smoke():
 
     gsimage = galsim.Image(dim, dim, wcs=wcs, dtype=float)
 
-    simcoadd.draw(
-        image=gsimage,
-        psf=psf,
-        obj_data=obj_data,
-        shear=shear,
-    )
-
-    noise_field.add_to(gsimage)
-
     obs = simcoadd.make_obs(
         image=gsimage,
-        psf=psf,
-        psf_dim=51,
+        obj_data=obj_data,
+        shear=shear,
         noise_field=noise_field,
+        psf=psf,
+        psf_dim=psf_dim,
         psf_noise_field=psf_noise_field,
     )
     assert isinstance(obs, ngmix.Observation)
