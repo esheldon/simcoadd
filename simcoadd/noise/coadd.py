@@ -14,6 +14,10 @@ class CoaddNoiseField:
     p_edge: float
         Probability of an edge going through the coadd region.
         For LSST coadd cells this is about 0.2
+    dither: bool
+        If set to True, use translational dithers
+    rotat: bool
+        If set to True, use rotational dithers
     rng: np.random.RandomState
         The random number generator
     """
@@ -103,15 +107,16 @@ def get_random_edge_mask(rng, example_image):
 
     Parameters
     ----------
-    dims: [ny, nx]
-        Dimensions of image to be masked
     rng: np.random.RandomState
         The random number generator.
+    example_image: galsim.Image
+        An example image to create the output, which will
+        carry the wcs in addition to proper dimensions.
 
     Returns
     -------
-    mask:
-        array if size [ny, nx], set to 1 if keep, 0 if out
+    mask: galsim.Image
+        set to 1 if the pixel is kept, 0 if out
     """
     import numpy as np
 
@@ -157,6 +162,10 @@ def generate_dithered_noise(
         the noise image size.
     noise_field: noise field
         e.g. WhiteNoiseField
+    dither: bool
+        If set to True, use translational dithers
+    rotat: bool
+        If set to True, use rotational dithers
     rng: np.random.RandomState
         A numpy random number generator
 

@@ -79,8 +79,20 @@ def resample_image_and_weight(data, example_image):
     """
     Resample the image onto an image represented by the input example.
 
-    Note the weight isn't resampled, it is just passed on based on
-    the median of the non-zero values in the input weight
+    Note the weight isn't resampled, it is just passed on based on the median
+    of the non-zero values in the input weight
+
+    Parameters
+    ----------
+    data: list
+        Each entr is a dict with 'image' and 'weight'
+    example_image: galsim.Image
+        Example image used to create the output, carrying the proper
+        dimensions and wcs
+
+    Returns
+    -------
+    dict with keys 'image' and 'weight'
     """
     import numpy as np
 
