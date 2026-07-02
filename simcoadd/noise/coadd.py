@@ -18,9 +18,18 @@ class CoaddNoiseField:
         The random number generator
     """
 
-    def __init__(self, noise_fields, p_edge, rng):
+    def __init__(
+        self,
+        noise_fields,
+        p_edge,
+        dither,
+        rotate,
+        rng,
+    ):
         self._noise_fields = noise_fields
         self._p_edge = p_edge
+        self._dither = dither
+        self._rotate = rotate
         self._rng = rng
 
     @property
@@ -55,6 +64,8 @@ class CoaddNoiseField:
             generate_dithered_noise(
                 coadd_image=image,
                 noise_field=noise_field,
+                dither=self._dither,
+                rotate=self._rotate,
                 rng=self._rng,
             )
             for noise_field in self._noise_fields
@@ -128,7 +139,13 @@ def get_random_edge_mask(rng, example_image):
     return mask
 
 
-def generate_dithered_noise(coadd_image, noise_field, rng):
+def generate_dithered_noise(
+    coadd_image,
+    noise_field,
+    dither,
+    rotate,
+    rng,
+):
     """
     Generate a noise image with a random spacial and rotational dither relative
     to the input coadd_image
@@ -160,9 +177,16 @@ def generate_dithered_noise(coadd_image, noise_field, rng):
     center = (np.array(dims) - 1.0) / 2.0
     new_image_origin = galsim.PositionD(center[1], center[0])
 
-    dx, dy = rng.uniform(low=-0.5, high=0.5, size=2)
-    dither_pixels = galsim.PositionD(dx, dy)
-    theta = rng.uniform(low=0, high=360) * galsim.degrees
+    if dither:
+        dx, dy = rng.uniform(low=-0.5, high=0.5, size=2)
+        dither_pixels = galsim.PositionD(dx, dy)
+    else:
+        dither_pixels = None
+
+    if rotate:
+        theta = rng.uniform(low=0, high=360) * galsim.degrees
+    else:
+        theta = None
 
     wcs = dither_wcs(
         wcs=coadd_image.wcs,
