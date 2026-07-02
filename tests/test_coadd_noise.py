@@ -62,7 +62,7 @@ def test_coadd_noise():
 
     image = galsim.Image(dim, dim, dtype=float, wcs=wcs)
 
-    weight = coadd_noise_field.add(image)
+    weight = coadd_noise_field.add_to(image)
 
     # std = noise.std()
     # assert abs(std / noise_sigma - 1) < 0.01

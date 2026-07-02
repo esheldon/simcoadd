@@ -34,8 +34,6 @@ def make_obs(
     """
     import ngmix
 
-    imshape = image.array.shape
-
     gscen = image.true_center
     gsjac = image.wcs.local(image_pos=gscen)
 
@@ -48,19 +46,23 @@ def make_obs(
         image_pos=gscen,
         wcs=gsjac,
     )
-    psf_im.array[:, :] += psf_noise_field.get_noise(psf_dim)
+
+    psf_weight = psf_noise_field.add_to_array(psf_im.array)
 
     psf_obs = ngmix.Observation(
         image=psf_im.array,
-        weight=psf_noise_field.get_weight(psf_im.array.shape),
+        weight=psf_weight,
         jacobian=psf_jacobian,
     )
 
+    noise_image = image.array * 0
+    weight = noise_field.add_to_array(noise_image)
+
     return ngmix.Observation(
         image=image.array,
-        weight=noise_field.get_weight(imshape),
+        weight=weight,
         jacobian=jacobian,
-        noise=noise_field.get_noise(imshape),
+        noise=noise_image,
         psf=psf_obs,
     )
 

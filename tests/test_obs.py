@@ -64,7 +64,7 @@ def test_obs_smoke():
         shear=shear,
     )
 
-    gsimage.array[:, :] += noise_field.get_noise(gsimage.array.shape)
+    noise_field.add_to(gsimage)
 
     obs = simcoadd.make_obs(
         image=gsimage,

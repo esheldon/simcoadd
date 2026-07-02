@@ -31,11 +31,12 @@ class CoaddNoiseField:
     def p_edge(self):
         return self._p_edge
 
-    def add(self, image):
+    def add_to(self, image):
         """
-        Add noise to the input galsim image and return the weight map.  Noise
-        realizations are drawn from the input fields with random rotations and
-        pixel-level dithers.
+        Add noise to the input galsim image and return the weight map.
+
+        Noise realizations are drawn from the input fields with random
+        rotations and pixel-level dithers.
 
         Parameters
         ----------
@@ -44,8 +45,8 @@ class CoaddNoiseField:
 
         Returns
         -------
-        weight: array
-            An array of 1 / sigma ** 2 with the input dimensions
+        weight: galsim.Image
+            Holds values 1 / sigma ** 2 from the weighted sum
         """
         from ..coadding import resample_image_and_weight, coadd_images
 
@@ -173,7 +174,7 @@ def generate_dithered_noise(coadd_image, noise_field, rng):
         dim, dim, wcs=wcs,
     )
 
-    weight_image = noise_field.add(noise_image)
+    weight_image = noise_field.add_to(noise_image)
 
     return {
         'image': noise_image,

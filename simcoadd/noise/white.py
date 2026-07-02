@@ -18,14 +18,32 @@ class WhiteNoiseField:
         self.rng = rng
         self.sigma = sigma
 
-    def add(self, image):
+    def add_to(self, image):
         """
-        Add noise to the input galsim image and return
-        the weight map.
+        Add noise to the input galsim image and return the weight map.
 
         Parameters
         ----------
-        image: galsim Image
+        image: galsim.Image
+            The image in which to add the noise
+
+        Returns
+        -------
+        weight: galsim.Image
+            An array of 1 / sigma ** 2 with the input dimensions
+        """
+
+        weight = image.copy()
+        weight.array[:, :] = self.add_to_array(image.array)
+        return weight
+
+    def add_to_array(self, image):
+        """
+        Add noise to the input numpy image and return the weight map.
+
+        Parameters
+        ----------
+        image: galsim Image or array
             The image in which to add the noise
 
         Returns
@@ -34,41 +52,12 @@ class WhiteNoiseField:
             An array of 1 / sigma ** 2 with the input dimensions
         """
 
-        image.array[:, :] += self.rng.normal(
-            scale=self.sigma,
-            size=image.array.shape,
-        )
-
         weight = image.copy()
-        weight.array[:, :] = 1.0 / self.sigma ** 2
-        return weight
 
-    def get_noise_and_weight(self, dims):
-        """
-        Get the noise field with the specified dimensions
-
-        Parameters
-        ----------
-        dims: [ny, nx]
-            The dimensions of the noise field to generate
-
-        Returns
-        -------
-        noise, weight
-
-        noise: galsim.Image
-            An array of noise with the input dimensions
-        weight: galsim.Image
-            An array of 1 / sigma ** 2 with the input dimensions
-        """
-        import galsim
-
-        noise = galsim.ImageD(dims[1], dims[0])
-        noise.array[:, :] = self.rng.normal(
+        image += self.rng.normal(
             scale=self.sigma,
-            size=dims,
+            size=image.shape,
         )
-        weight = noise.copy()
 
-        weight.array[:, :] = 1.0 / self.sigma ** 2
-        return noise, weight
+        weight[:, :] = 1.0 / self.sigma ** 2
+        return weight
