@@ -98,13 +98,16 @@ def dither_wcs(
 
     # Shift the world origin: move it to where (crpix + dither) pointed.
     # convert dx, dy to du, dv
-    dither_array = np.array([dither_pixels.x, dither_pixels.y])
-    du, dv = J @ dither_array
-    new_world_origin = world_origin.deproject(
-        du * galsim.degrees,
-        dv * galsim.degrees,
-        projection='gnomonic',
-    )
+    if dither_pixels is not None:
+        dither_array = np.array([dither_pixels.x, dither_pixels.y])
+        du, dv = J @ dither_array
+        new_world_origin = world_origin.deproject(
+            du * galsim.degrees,
+            dv * galsim.degrees,
+            projection='gnomonic',
+        )
+    else:
+        new_world_origin = world_origin
 
     # Rotate the pixel grid about crpix (crpix unchanged).
     if theta is not None:
