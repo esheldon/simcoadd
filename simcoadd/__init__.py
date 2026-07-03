@@ -14,6 +14,9 @@ from .galaxies import FixedGalaxyCatalog, WLDeblendGalaxyCatalog
 from . import noise
 from .noise import WhiteNoiseField, CoaddNoiseField
 
+from . import dithers
+from .dithers import make_random_dither
+
 from . import surveys
 from .surveys import BasicSurvey, WLDeblendSurvey
 
@@ -34,5 +37,6 @@ from . import constants
 from .constants import ZERO_POINT
 
 from . import coadding
+from .coadding import coadd_images
 
 from . import vis

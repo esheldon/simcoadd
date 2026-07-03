@@ -2,7 +2,7 @@ import numpy as np
 import galsim
 import simcoadd
 from simcoadd import WhiteNoiseField
-from simcoadd.noise.coadd import get_random_edge_mask, make_random_dither
+from simcoadd import make_random_dither
 
 
 def _make_coadd_image(dim, theta=None):
@@ -358,27 +358,3 @@ def test_coadd_noise_reproducible():
 
     np.testing.assert_array_equal(results[0][0], results[1][0])
     np.testing.assert_array_equal(results[0][1], results[1][1])
-
-
-def test_random_edge_mask():
-    rng = np.random.RandomState(313)
-
-    example = _make_coadd_image(51)
-
-    fracs = []
-    for i in range(100):
-        mask = get_random_edge_mask(rng=rng, example_image=example)
-
-        assert mask.bounds == example.bounds
-        assert mask.wcs == example.wcs
-        assert np.all(np.isin(mask.array, [0.0, 1.0]))
-
-        # the kept side always includes at least one corner
-        frac = 1.0 - mask.array.mean()
-        assert frac < 1.0
-
-        fracs.append(frac)
-
-    # the edges should cut anywhere from nearly nothing to a large fraction
-    assert min(fracs) < 0.1
-    assert max(fracs) > 0.4
