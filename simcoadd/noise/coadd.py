@@ -63,6 +63,8 @@ class CoaddNoiseField:
         """
         from ..coadding import resample_image_and_weight, coadd_images
 
+        rng = self._rng
+
         # list of dict with keys 'image' and 'weight'
         noise_data = [
             generate_dithered_noise(
@@ -70,7 +72,7 @@ class CoaddNoiseField:
                 noise_field=noise_field,
                 dither=self._dither,
                 rotate=self._rotate,
-                rng=self._rng,
+                rng=rng,
             )
             for noise_field in self._noise_fields
         ]
@@ -86,11 +88,8 @@ class CoaddNoiseField:
 
         # Add mask images
         for this_data in resampled_data:
-            if self._rng.uniform() < self.p_edge:
-                mask = get_random_edge_mask(
-                    rng=self._rng,
-                    example_image=image,
-                )
+            if rng.uniform() < self.p_edge:
+                mask = get_random_edge_mask(rng, image)
                 this_data['mask'] = mask
 
         # add to the input image

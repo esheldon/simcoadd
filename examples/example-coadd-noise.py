@@ -17,7 +17,6 @@ def main():
         for sigma in sigmas
     ]
 
-    # Only correct for conformal WCS (pixel scale)
     noise_field = simcoadd.CoaddNoiseField(
         noise_fields=noise_fields,
         p_edge=0.2,
