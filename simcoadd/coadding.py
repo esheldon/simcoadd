@@ -68,9 +68,14 @@ def resample_onto_image(image, output_image):
     """
     import galsim
 
+    # stepk/maxk are only needed for k space drawing or automatic image
+    # sizing; we draw in real space into a provided image, so skip the
+    # expensive calculation
     ii = galsim.InterpolatedImage(
         image,
         x_interpolant=X_INTERPOLANT,
+        calculate_stepk=False,
+        calculate_maxk=False,
     )
 
     # this part is key
