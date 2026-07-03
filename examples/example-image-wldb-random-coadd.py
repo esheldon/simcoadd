@@ -2,7 +2,7 @@ import numpy as np
 import galsim
 import simcoadd
 from simcoadd import vis, WhiteNoiseField
-from simcoadd.noise.coadd import make_random_dither
+from simcoadd import make_random_dither
 import matplotlib.pyplot as mplt
 
 
@@ -16,7 +16,7 @@ def main():
     shear = galsim.Shear(g1=0.02, g2=0.0)
     rng = np.random.RandomState(seed)
 
-    survey = simcoadd.WLDeblendSurvey(
+    survey = simcoadd.Survey(
         band='i',
         survey_name='LSST',
     )
@@ -67,7 +67,7 @@ def main():
         pixel_scale=survey.pixel_scale,
     )
 
-    galaxies = simcoadd.WLDeblendGalaxyCatalog(
+    galaxies = simcoadd.WLDBGalaxyCatalog(
         rng=rng,
         layout=layout,
     )

@@ -2,7 +2,7 @@ import numpy as np
 import galsim
 import simcoadd
 from simcoadd import vis, WhiteNoiseField
-from simcoadd.noise.coadd import make_random_dither
+from simcoadd import make_random_dither
 import matplotlib.pyplot as mplt
 
 

@@ -2,8 +2,8 @@
 
 from . import wldb
 from .wldb import (
-    WLDeblendSurvey,
-    get_wldeblend_rescale_fac,
+    Survey,
+    get_wldb_rescale_fac,
 )
 
 from . import basic

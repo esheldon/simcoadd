@@ -14,7 +14,7 @@ def main():
 
     psf = galsim.Moffat(fwhm=0.8, beta=3.5)
 
-    survey = simcoadd.WLDeblendSurvey(
+    survey = simcoadd.Survey(
         band='i',
         survey_name='LSST',
     )
@@ -40,7 +40,7 @@ def main():
         pixel_scale=survey.pixel_scale,
     )
 
-    galaxies = simcoadd.WLDeblendGalaxyCatalog(
+    galaxies = simcoadd.WLDBGalaxyCatalog(
         rng=rng,
         layout=layout,
     )

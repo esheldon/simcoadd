@@ -3,7 +3,7 @@ import os
 import galsim
 
 
-class WLDeblendGalaxyCatalog(object):
+class WLDBGalaxyCatalog(object):
     """
     Catalog of galaxies from wldeblend
 
