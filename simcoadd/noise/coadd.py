@@ -11,9 +11,9 @@ class CoaddNoiseField:
     ----------
     noise_fields: list of noise fields
         List of noise fields, e.g. WhiteNoiseField
-    p_edge: float
-        Probability of an edge going through the coadd region.
-        For LSST coadd cells this is about 0.2
+    masks: list of galsim.Image or None
+        Either a list [galsim.Image] holding masks or None.  Must
+        be the same length as noise_fields
     dither: bool
         If set to True, use translational dithers
     rotat: bool
@@ -25,24 +25,27 @@ class CoaddNoiseField:
     def __init__(
         self,
         noise_fields,
-        p_edge,
+        masks,
         dither,
         rotate,
         rng,
     ):
         self._noise_fields = noise_fields
-        self._p_edge = p_edge
+        self._masks = masks
         self._dither = dither
         self._rotate = rotate
         self._rng = rng
 
+        if masks is not None:
+            if len(noise_fields) != len(masks):
+                raise ValueError(
+                    f'masks length must match noise_fields, got '
+                    f'{len(masks)} != {len(noise_fields)}'
+                )
+
     @property
     def nepoch(self):
         return len(self._noise_fields)
-
-    @property
-    def p_edge(self):
-        return self._p_edge
 
     def add_to(self, image):
         """
@@ -87,9 +90,9 @@ class CoaddNoiseField:
         ]
 
         # Add mask images
-        for this_data in resampled_data:
-            if rng.uniform() < self.p_edge:
-                mask = get_random_edge_mask(rng, image)
+        if self._masks is not None:
+            for this_data, mask in zip(resampled_data, self._masks):
+                assert this_data['image'].array.shape == mask.array.shape
                 this_data['mask'] = mask
 
         # add to the input image
@@ -98,6 +101,43 @@ class CoaddNoiseField:
         image += coadd_data['image']
 
         return coadd_data['weight']
+
+
+def get_random_edge_masks(rng, num, p_edge, example_image):
+    """
+    Get a randomized edge mask with edg hit rate p_edge
+
+    Parameters
+    ----------
+    rng: np.random.RandomState
+        The random number generator.
+    num: int
+        Number of masks to generate
+    p_edge: float
+        Probability of an edge entering the image
+    example_image: galsim.Image
+        An example image to create the output, which will
+        carry the wcs in addition to proper dimensions.
+
+    Returns
+    -------
+    list of masks, with each mask a
+
+    mask: galsim.Image
+        set to 1 if the pixel is kept, 0 if out
+    """
+
+    masks = []
+
+    for i in range(num):
+        if rng.uniform() < p_edge:
+            mask = get_random_edge_mask(rng, example_image)
+        else:
+            mask = example_image * 0 + 1.0
+
+        masks.append(mask)
+
+    return masks
 
 
 def get_random_edge_mask(rng, example_image):

@@ -12,18 +12,6 @@ def main():
     sigmas = rng.normal(scale=0.05, loc=1.0, size=nepoch)
 
     dim = 350
-    noise_fields = [
-        WhiteNoiseField(rng=rng, sigma=sigma)
-        for sigma in sigmas
-    ]
-
-    noise_field = simcoadd.CoaddNoiseField(
-        noise_fields=noise_fields,
-        p_edge=0.2,
-        dither=True,
-        rotate=True,
-        rng=rng,
-    )
     # galsim wants 1 offset
     cen = (dim - 1.0) / 2.0 + 1
 
@@ -41,6 +29,26 @@ def main():
     )
 
     noise_image = galsim.Image(dim, dim, dtype=float, wcs=wcs)
+
+    white_noise_fields = [
+        WhiteNoiseField(rng=rng, sigma=sigma)
+        for sigma in sigmas
+    ]
+
+    masks = simcoadd.noise.get_random_edge_masks(
+        rng=rng,
+        num=nepoch,
+        p_edge=0.2,
+        example_image=noise_image,
+    )
+
+    noise_field = simcoadd.CoaddNoiseField(
+        noise_fields=white_noise_fields,
+        masks=masks,
+        dither=True,
+        rotate=True,
+        rng=rng,
+    )
 
     weight = noise_field.add_to(noise_image)
 
