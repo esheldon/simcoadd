@@ -2,6 +2,7 @@ import numpy as np
 import galsim
 import simcoadd
 from simcoadd import vis, WhiteNoiseField
+from simcoadd.noise.coadd import make_random_dither
 import matplotlib.pyplot as mplt
 
 
@@ -11,6 +12,7 @@ def main():
     dim = 350
     buff = 50
     nepoch = 100
+    p_edge = 0.2
     shear = galsim.Shear(g1=0.02, g2=0.0)
     rng = np.random.RandomState(seed)
 
@@ -27,13 +29,19 @@ def main():
         WhiteNoiseField(rng=rng, sigma=sigma)
         for sigma in sigmas
     ]
+    dithers = [
+        make_random_dither(dim, p_edge, rng)
+        for i in range(nepoch)
+    ]
+    rotations = [
+        rng.uniform(low=0, high=360) * galsim.degrees
+        for i in range(nepoch)
+    ]
 
     noise_field = simcoadd.CoaddNoiseField(
         noise_fields=noise_fields,
-        p_edge=0.2,
-        dither=True,
-        rotate=True,
-        rng=rng,
+        dithers=dithers,
+        rotations=rotations,
     )
 
     psf = galsim.Moffat(fwhm=0.8, beta=3.5)
@@ -75,7 +83,8 @@ def main():
         shear=shear,
     )
 
-    weight = noise_field.add_to(gsimage)
+    noise_data = noise_field.add_to(gsimage)
+    weight = noise_data['weight']
 
     with mplt.style.context('dark_background'):
         fig, axs = mplt.subplots(ncols=2, figsize=(10, 5))

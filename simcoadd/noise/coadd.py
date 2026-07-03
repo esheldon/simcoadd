@@ -191,7 +191,8 @@ def generate_dithered_noise(
     )
     noise_image = galsim.ImageD(dim, dim, wcs=wcs)
 
-    weight_image = noise_field.add_to(noise_image)
+    noise_data = noise_field.add_to(noise_image)
+    weight_image = noise_data['weight']
 
     return {
         'image': noise_image,

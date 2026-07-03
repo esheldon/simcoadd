@@ -55,7 +55,7 @@ def make_obs(
         shear=shear,
     )
 
-    weight = noise_field.add_to(image)
+    noise_data = noise_field.add_to(image)
 
     gscen = image.true_center
     gsjac = image.wcs.local(image_pos=gscen)
@@ -77,21 +77,21 @@ def make_obs(
         wcs=psf_wcs,
     )
 
-    psf_weight = psf_noise_field.add_to(psf_im)
+    psf_noise_data = psf_noise_field.add_to(psf_im)
 
     psf_obs = ngmix.Observation(
         image=psf_im.array,
-        weight=psf_weight.array,
+        weight=psf_noise_data['weight'].array,
         jacobian=psf_jacobian,
     )
 
     noise_image = image * 0
-    nweight = noise_field.add_to(noise_image)
-    assert np.all(nweight.array == weight.array)
+    noise_data2 = noise_field.add_to(noise_image)
+    assert np.all(noise_data2['weight'].array == noise_data['weight'].array)
 
     return ngmix.Observation(
         image=image.array,
-        weight=weight.array,
+        weight=noise_data['weight'].array,
         jacobian=jacobian,
         noise=noise_image.array,
         psf=psf_obs,
