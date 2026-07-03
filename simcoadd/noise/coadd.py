@@ -26,6 +26,13 @@ class CoaddNoiseField:
         rotations,
     ):
         self._noise_fields = noise_fields
+
+        if dithers is None:
+            dithers = [None] * len(noise_fields)
+
+        if rotations is None:
+            rotations = [None] * len(noise_fields)
+
         self._dithers = dithers
         self._rotations = rotations
 

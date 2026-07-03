@@ -68,8 +68,6 @@ def make_obs(
     psf_origin = galsim.PositionD(psf_cen, psf_cen)
     psf_wcs = wcs_with_new_image_origin(
         wcs=image.wcs,
-        dither=None,
-        theta=None,
         new_image_origin=psf_origin,
     )
     psf_im = draw_psf_image(
