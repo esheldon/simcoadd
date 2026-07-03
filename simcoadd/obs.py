@@ -46,7 +46,7 @@ def make_obs(
     import ngmix
     import galsim
     from . import drawing
-    from .wcs import dither_wcs
+    from .wcs import wcs_with_new_image_origin
 
     drawing.draw(
         image=image,
@@ -66,9 +66,9 @@ def make_obs(
     # galsim wants 1 offset
     psf_cen = (psf_dim - 1.0) / 2.0 + 1
     psf_origin = galsim.PositionD(psf_cen, psf_cen)
-    psf_wcs = dither_wcs(
+    psf_wcs = wcs_with_new_image_origin(
         wcs=image.wcs,
-        dither_pixels=None,
+        dither=None,
         theta=None,
         new_image_origin=psf_origin,
     )
@@ -76,7 +76,6 @@ def make_obs(
         psf=psf,
         dim=psf_dim,
         image_pos=gscen,
-        # wcs=gsjac,
         wcs=psf_wcs,
     )
 
