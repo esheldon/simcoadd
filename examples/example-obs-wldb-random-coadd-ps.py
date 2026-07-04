@@ -110,6 +110,7 @@ def main():
         fwhm=0.8,
         g1=0.01,
         g2=-0.01,
+        beta=3.5,
         im_width=dim,
         buff=dim // 2,
         pixel_scale=survey.pixel_scale,

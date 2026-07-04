@@ -27,6 +27,8 @@ class PowerSpectrumPSF(object):
         The central value of the shape g1
     g2: float
         The central value of the shape g2
+    beta: float
+        The beta for the Moffat profile
     im_width : float
         The width of the image in pixels.
     buff : int
@@ -50,6 +52,7 @@ class PowerSpectrumPSF(object):
         fwhm,
         g1,
         g2,
+        beta,
         im_width,
         buff,
         pixel_scale,
@@ -65,6 +68,7 @@ class PowerSpectrumPSF(object):
         self._fwhm_central = fwhm
         self._g1_mean = g1
         self._g2_mean = g2
+        self._moffat_beta = beta
         self._trunc = trunc
 
         self._build_ps()
@@ -109,7 +113,7 @@ class PowerSpectrumPSF(object):
 
         fwhm = self._fwhm_central / np.power(mu, 0.75)
 
-        psf = galsim.Moffat(beta=3.5, fwhm=fwhm).shear(
+        psf = galsim.Moffat(beta=self._moffat_beta, fwhm=fwhm).shear(
             g1=g1 + self._g1_mean, g2=g2 + self._g2_mean
         )
 
