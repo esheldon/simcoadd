@@ -23,7 +23,7 @@ def main():
     seed = 76
     nepoch = 150  # 100 epochs in coadd
     p_edge = 0.20  # 20% chance for an edge to cross the coadd
-    dim = 350  # size of coadd [dim, dim]
+    dim = 350  # size of coadd
     buff = 50  # buffer region where no objects are drawn
     psf_dim = 51  # size of psf [psf_dim, psf_dim]
 
