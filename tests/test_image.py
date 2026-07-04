@@ -178,6 +178,7 @@ def test_wldb_random_ps_smoke():
 
     psf = simcoadd.PowerSpectrumPSF(
         rng=rng,
+        median_seeing=0.8,
         im_width=dim,
         buff=dim // 2,
         pixel_scale=survey.pixel_scale,

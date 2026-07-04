@@ -10,13 +10,18 @@ import galsim.utilities
 
 
 class PowerSpectrumPSF(object):
-    """Produce a spatially varying Moffat PSF according to the power spectrum
+    """
+    Produce a spatially varying Moffat PSF according to the power spectrum
     given by Heymans et al. (2012).
 
     Parameters
     ----------
     rng : np.random.RandomState
         An RNG instance.
+    median_seeing : float, optional
+        A PSF FWHM is drawn from a log-normal distribution with this median and
+        a 10 percent standard deviation.  The spatial variation is relative to
+        the drawn value.
     im_width : float
         The width of the image in pixels.
     buff : int
@@ -31,29 +36,34 @@ class PowerSpectrumPSF(object):
         desired noise. A value of 1e-2 generates a PSF image with an
         effective signal-to-noise of ~250.
     variation_factor : float, optional
-        This factor is used internally to scale the overall variance in the
-        PSF shape power spectra and the change in the PSF size across the
-        image. Setting this factor greater than 1 results in more variation
-        and less than 1 results in less variation.
-    median_seeing : float, optional
-        The approximate median seeing for the PSF.
+        This factor is used internally to scale various properties.
+        The default is 1.0
+
+            - The relative spatial variation of the size across the image
+              scales as 0.01 * variation factor.  Thus the default
+              variation factor gives 0.01
+            - the mean g1/g2 for the field are drawn from a normal with
+              standard deviation 0.03 * variation_factor
+
+        Setting this factor greater than 1 results in more variation and less
+        than 1 results in less variation.
 
     Methods
     -------
-    getPSF(pos)
+    get_psf(pos)
         Get a PSF model at a given position.
     """
 
     def __init__(
         self,
         rng,
+        median_seeing,
         im_width,
         buff,
         pixel_scale,
         trunc=1,
         noise_level=None,
         variation_factor=1,
-        median_seeing=0.8,
     ):
         self._rng = rng
         self._im_cen = (im_width - 1) / 2
@@ -115,8 +125,8 @@ class PowerSpectrumPSF(object):
             interpolant=galsim.Lanczos(5),
         )
 
-        self._g1_mean = self._rng.normal() * 0.01 * variation_factor
-        self._g2_mean = self._rng.normal() * 0.01 * variation_factor
+        self._g1_mean = self._rng.normal() * 0.03 * variation_factor
+        self._g2_mean = self._rng.normal() * 0.03 * variation_factor
 
         if self._noise_level is not None and self._noise_level > 0:
             self._noise_field = (
