@@ -18,35 +18,24 @@ class PowerSpectrumPSF(object):
     ----------
     rng : np.random.RandomState
         An RNG instance.
-    median_seeing : float, optional
-        A PSF FWHM is drawn from a log-normal distribution with this median and
-        a 10 percent standard deviation.  The spatial variation is relative to
-        the drawn value.
+    variation: float
+        The relative variation across the field.  Use 0.01 for approximately
+        one percent variation.
+    fwhm: float
+        The central psf FWHM in arcsec.
+    g1: float
+        The central value of the shape g1
+    g2: float
+        The central value of the shape g2
     im_width : float
         The width of the image in pixels.
     buff : int
         An extra buffer of pixels for things near the edge.
-    scale : float
+    pixel_scale : float
         The pixel scale of the image
     trunc : float
         The truncation scale for the shape/magnification power spectrum
-        used to generate the PSF variation.
-    noise_level : float, optional
-        If not `None`, generate a noise field to add to the PSF images with
-        desired noise. A value of 1e-2 generates a PSF image with an
-        effective signal-to-noise of ~250.
-    variation_factor : float, optional
-        This factor is used internally to scale various properties.
-        The default is 1.0
-
-            - The relative spatial variation of the size across the image
-              scales as 0.01 * variation factor.  Thus the default
-              variation factor gives 0.01
-            - the mean g1/g2 for the field are drawn from a normal with
-              standard deviation 0.03 * variation_factor
-
-        Setting this factor greater than 1 results in more variation and less
-        than 1 results in less variation.
+        used to generate the PSF variation.  Default 1
 
     Methods
     -------
@@ -57,29 +46,81 @@ class PowerSpectrumPSF(object):
     def __init__(
         self,
         rng,
-        median_seeing,
+        variation,
+        fwhm,
+        g1,
+        g2,
         im_width,
         buff,
         pixel_scale,
         trunc=1,
-        noise_level=None,
-        variation_factor=1,
     ):
         self._rng = rng
         self._im_cen = (im_width - 1) / 2
         self._pixel_scale = pixel_scale
         self._tot_width = im_width + 2 * buff
         self._x_scale = 2.0 / self._tot_width / pixel_scale
-        self._noise_level = noise_level
         self._buff = buff
-        self._variation_factor = variation_factor
-        self._median_seeing = median_seeing
+        self._variation = variation
+        self._fwhm_central = fwhm
+        self._g1_mean = g1
+        self._g2_mean = g2
+        self._trunc = trunc
 
+        self._build_ps()
+
+    def get_psf(self, pos):
+        """
+        Get a PSF model at a given position.
+
+        Parameters
+        ----------
+        pos : galsim.PositionD
+            The position at which to compute the PSF. In zero-indexed
+            pixel coordinates.
+
+        Returns
+        -------
+        psf : galsim.GSObject
+            A representation of the PSF as a galism object.
+        """
+        psf = self._get_atm(pos.x, pos.y)
+        return psf.withFlux(1.0)
+
+    def _get_lensing(self, pos):
+        pos_x, pos_y = galsim.utilities._convertPositions(
+            pos, galsim.arcsec, '_get_lensing'
+        )
+        return (
+            self._lut_g1(pos_x, pos_y),
+            self._lut_g2(pos_x, pos_y),
+            self._lut_mu(pos_x, pos_y) + 1,
+        )
+
+    def _get_atm(self, x, y):
+        xs = (x + 1 - self._im_cen) * self._pixel_scale
+        ys = (y + 1 - self._im_cen) * self._pixel_scale
+        g1, g2, mu = self._get_lensing((xs, ys))
+
+        if g1 * g1 + g2 * g2 >= 1.0:
+            norm = np.sqrt(g1 * g1 + g2 * g2) / 0.5
+            g1 /= norm
+            g2 /= norm
+
+        fwhm = self._fwhm_central / np.power(mu, 0.75)
+
+        psf = galsim.Moffat(beta=3.5, fwhm=fwhm).shear(
+            g1=g1 + self._g1_mean, g2=g2 + self._g2_mean
+        )
+
+        return psf
+
+    def _build_ps(self):
         # set the power spectrum and PSF params
         # Heymans et al, 2012 found L0 ~= 3 arcmin, given as 180 arcsec here.
         def _pf(k):
             return (k**2 + (1.0 / 180) ** 2) ** (-11.0 / 6.0) * np.exp(
-                -((k * trunc) ** 2)
+                -((k * self._trunc) ** 2)
             )
 
         self._ps = galsim.PowerSpectrum(
@@ -94,7 +135,7 @@ class PowerSpectrumPSF(object):
             grid_spacing=gs,
             ngrid=ng,
             get_convergence=True,
-            variance=(0.01 * variation_factor) ** 2,
+            variance=self._variation ** 2,
             rng=galsim.BaseDeviate(seed),
         )
 
@@ -124,83 +165,3 @@ class PowerSpectrumPSF(object):
             edge_mode='wrap',
             interpolant=galsim.Lanczos(5),
         )
-
-        self._g1_mean = self._rng.normal() * 0.03 * variation_factor
-        self._g2_mean = self._rng.normal() * 0.03 * variation_factor
-
-        if self._noise_level is not None and self._noise_level > 0:
-            self._noise_field = (
-                self._rng.normal(
-                    size=(im_width + buff + 37, im_width + buff + 37)
-                )
-                * noise_level
-            )
-
-        def _getlogmnsigma(mean, sigma):
-            logmean = np.log(mean) - 0.5 * np.log(1 + sigma**2 / mean**2)
-            logvar = np.log(1 + sigma**2 / mean**2)
-            logsigma = np.sqrt(logvar)
-            return logmean, logsigma
-
-        lm, ls = _getlogmnsigma(self._median_seeing, 0.1)
-        self._fwhm_central = np.exp(self._rng.normal() * ls + lm)
-
-    def _get_lensing(self, pos):
-        pos_x, pos_y = galsim.utilities._convertPositions(
-            pos, galsim.arcsec, '_get_lensing'
-        )
-        return (
-            self._lut_g1(pos_x, pos_y),
-            self._lut_g2(pos_x, pos_y),
-            self._lut_mu(pos_x, pos_y) + 1,
-        )
-
-    def _get_atm(self, x, y):
-        xs = (x + 1 - self._im_cen) * self._pixel_scale
-        ys = (y + 1 - self._im_cen) * self._pixel_scale
-        g1, g2, mu = self._get_lensing((xs, ys))
-
-        if g1 * g1 + g2 * g2 >= 1.0:
-            norm = np.sqrt(g1 * g1 + g2 * g2) / 0.5
-            g1 /= norm
-            g2 /= norm
-
-        fwhm = self._fwhm_central / np.power(mu, 0.75)
-
-        psf = galsim.Moffat(beta=2.5, fwhm=fwhm).shear(
-            g1=g1 + self._g1_mean, g2=g2 + self._g2_mean
-        )
-
-        return psf
-
-    def get_psf(self, pos):  # noqa: N802
-        """
-        Get a PSF model at a given position.
-
-        Parameters
-        ----------
-        pos : galsim.PositionD
-            The position at which to compute the PSF. In zero-indexed
-            pixel coordinates.
-
-        Returns
-        -------
-        psf : galsim.GSObject
-            A representation of the PSF as a galism object.
-        """
-        psf = self._get_atm(pos.x, pos.y)
-
-        if self._noise_level is not None and self._noise_level > 0:
-            xll = int(pos.x + self._buff - 16)
-            yll = int(pos.y + self._buff - 16)
-            assert xll >= 0 and xll + 33 <= self._noise_field.shape[1]
-            assert yll >= 0 and yll + 33 <= self._noise_field.shape[0]
-
-            stamp = self._noise_field[yll : yll + 33, xll : xll + 33].copy()
-            psf += galsim.InterpolatedImage(
-                galsim.ImageD(
-                    stamp, scale=self._pixel_scale,
-                ), normalization="sb"
-            )
-
-        return psf.withFlux(1.0)

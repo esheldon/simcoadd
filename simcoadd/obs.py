@@ -97,7 +97,10 @@ def make_obs(
         psf=psf_obs,
     )
 
-    obs.meta['nepoch'] = noise_data['nepoch'].array
+    if 'nepoch' in noise_data:
+        obs.meta['nepoch'] = noise_data['nepoch'].array
+    else:
+        obs.meta['nepoch'] = obs.image * 0 + 1.0
 
     return obs
 

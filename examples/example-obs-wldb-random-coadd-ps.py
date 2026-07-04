@@ -106,7 +106,10 @@ def main():
     # a power spectrum of fluctuations
     psf = simcoadd.PowerSpectrumPSF(
         rng=rng,
-        median_seeing=0.8,
+        variation=0.01,
+        fwhm=0.8,
+        g1=0.01,
+        g2=-0.01,
         im_width=dim,
         buff=dim // 2,
         pixel_scale=survey.pixel_scale,
