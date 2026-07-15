@@ -9,13 +9,16 @@ from . import obs
 from .obs import make_obs
 
 from . import galaxies
-from .galaxies import FixedGalaxyCatalog, WLDeblendGalaxyCatalog
+from .galaxies import FixedGalaxyCatalog, WLDBGalaxyCatalog
 
 from . import noise
 from .noise import WhiteNoiseField, CoaddNoiseField
 
+from . import dithers
+from .dithers import make_random_dither
+
 from . import surveys
-from .surveys import BasicSurvey, WLDeblendSurvey
+from .surveys import BasicSurvey, Survey
 
 # from . import noise_field
 from . import wcs
@@ -34,5 +37,6 @@ from . import constants
 from .constants import ZERO_POINT
 
 from . import coadding
+from .coadding import coadd_images
 
 from . import vis

@@ -1,3 +1,10 @@
+"""
+Simulation with
+    - Fixed exponential galaxies
+    - Grid layout
+    - White noise field
+    - Moffat PSF
+"""
 import numpy as np
 import galsim
 import simcoadd
@@ -6,19 +13,21 @@ import simcoadd
 def main():
 
     seed = 9832
-    dim = 350
-    buff = 50
+    dim = 350  # size of the image
+    buff = 50  # buffer region where no objects are drawn
 
     rng = np.random.RandomState(seed)
+
+    # constant shear model
     shear = galsim.Shear(g1=0.02, g2=0.0)
 
+    # static round Moffat psf
     psf = galsim.Moffat(fwhm=0.8, beta=3.5)
 
-    survey = simcoadd.WLDeblendSurvey(
-        band='i',
-        survey_name='LSST',
-    )
+    # LSST i band
+    survey = simcoadd.Survey(band='i', survey_name='LSST')
 
+    # Build the WCS for the image
     cen = (dim - 1.0) / 2.0
     image_origin = galsim.PositionD(cen, cen)
     world_origin = galsim.CelestialCoord(
@@ -41,18 +50,24 @@ def main():
         pixel_scale=survey.pixel_scale,
     )
 
+    # Fixed Exponential galaxies
     galaxies = simcoadd.FixedGalaxyCatalog(
         layout=layout,
         morph=galsim.Exponential(half_light_radius=0.5),
         mag=22,
     )
 
+    # white noise field
     noise_gen = simcoadd.WhiteNoiseField(rng=rng, sigma=survey.noise)
 
+    # extract the object data.  This is a list of dictionaries
+    # containing the 'obj', 'redshift', 'index', 'shift'
     obj_data = galaxies.get_obj_data(survey)
 
+    # Create the output image, into which we will draw objects and noise
     gsimage = galsim.Image(dim, dim, wcs=wcs, dtype=float)
 
+    # draw the objects into the image, no noise yet
     simcoadd.draw(
         image=gsimage,
         psf=psf,
@@ -60,6 +75,7 @@ def main():
         shear=shear,
     )
 
+    # add noise
     noise_gen.add_to(gsimage)
 
     simcoadd.vis.show_image(

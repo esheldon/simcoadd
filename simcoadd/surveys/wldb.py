@@ -1,7 +1,7 @@
 from ..constants import ZERO_POINT
 
 
-class WLDeblendSurvey(object):
+class Survey(object):
     """
     wrapper for wldeblend surveys
 
@@ -40,7 +40,7 @@ class WLDeblendSurvey(object):
         self.descwl_survey = svy
 
         # rescales to ZERO_POINT
-        self.flux_factor = get_wldeblend_rescale_fac(self.descwl_survey)
+        self.flux_factor = get_wldb_rescale_fac(self.descwl_survey)
         self.noise = np.sqrt(svy.mean_sky_level) * self.flux_factor
 
         self.pixel_scale = pars['pixel_scale']
@@ -66,14 +66,14 @@ class WLDeblendSurvey(object):
         return self.descwl_survey.get_flux(mag) * self.flux_factor
 
 
-def get_wldeblend_rescale_fac(survey):
+def get_wldb_rescale_fac(survey):
     """
     Get the factor to rescale wldeblend images to our zero point
 
     Parameters
     ----------
-    survey: WLDeblendSurvey
-        The survey object
+    survey: a descwl.Survey
+        The descwl survey object
 
     Returns
     -------

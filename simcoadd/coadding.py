@@ -22,9 +22,15 @@ def coadd_images(data):
             The weighted mean image
         weight: galsim.Image
             The final weight image, from the sum over the weights
+        nepoch: galsim.Image
+            Holds the total number of epochs that contributed to
+            the coadd in each pixel.
     """
     from numpy import where
+    import numpy as np
 
+    ny, nx = data[0]['image'].array.shape
+    nsum = galsim.Image(nx, ny, dtype=np.float32)
     wsum = data[0]['image'] * 0
     image = data[0]['image'] * 0
 
@@ -36,11 +42,16 @@ def coadd_images(data):
         image += weight * this_data['image']
         wsum += weight
 
+        w = np.where(weight.array > 0)
+        if w[0].size > 0:
+            nsum.array[w] += weight.array[w] / weight.array[w].max()
+
     image.array[:, :] *= 1.0 / where(wsum.array > 0, wsum.array, 1)
 
     return {
         'image': image,
         'weight': wsum,
+        'nepoch': nsum,
     }
 
 
@@ -57,9 +68,14 @@ def resample_onto_image(image, output_image):
     """
     import galsim
 
+    # stepk/maxk are only needed for k space drawing or automatic image
+    # sizing; we draw in real space into a provided image, so skip the
+    # expensive calculation
     ii = galsim.InterpolatedImage(
         image,
         x_interpolant=X_INTERPOLANT,
+        calculate_stepk=False,
+        calculate_maxk=False,
     )
 
     # this part is key
@@ -79,8 +95,9 @@ def resample_image_and_weight(data, example_image):
     """
     Resample the image onto an image represented by the input example.
 
-    Note the weight isn't resampled, it is just passed on based on the median
-    of the non-zero values in the input weight
+    Note the weight isn't resampled.  To avoid odd structure in the weight from
+    the resampling, any pixels that had a contribution get weight equal to the
+    median of the input data['weight']
 
     Parameters
     ----------
@@ -96,19 +113,17 @@ def resample_image_and_weight(data, example_image):
     """
     import numpy as np
 
-    rimage = example_image.copy()
+    rimage = example_image * 0
     resample_onto_image(
         image=data['image'],
         output_image=rimage,
     )
 
-    rweight = example_image.copy()
+    rweight = example_image * 0
+    wused = np.where(rimage.array != 0.0)
 
-    w = np.where(data['weight'].array > 0)
-    if w[0].size > 0:
-        rweight.array[:, :] = np.median(data['weight'].array[w])
-    else:
-        rweight.array[:, :] = 0.0
+    if wused[0].size > 0:
+        rweight.array[wused] = np.median(data['weight'].array[wused])
 
     return {
         'image': rimage,

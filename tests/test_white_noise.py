@@ -12,7 +12,8 @@ def test_white_noise_add_array():
 
     dims = (250, 250)
     noise = np.zeros(dims)
-    weight = noise_field.add_to_array(noise)
+    noise_data = noise_field.add_to_array(noise)
+    weight = noise_data['weight']
 
     std = noise.std()
     assert abs(std / noise_sigma - 1) < 0.01
@@ -28,7 +29,8 @@ def test_white_noise_add_gsimage():
     noise_field = simcoadd.WhiteNoiseField(rng=rng, sigma=noise_sigma)
 
     image = galsim.Image(250, 250, dtype=float)
-    weight = noise_field.add_to(image)
+    noise_data = noise_field.add_to(image)
+    weight = noise_data['weight']
 
     std = image.array.std()
     assert abs(std / noise_sigma - 1) < 0.01

@@ -63,21 +63,21 @@ def rotate_matrix(matrix, theta):
 
 def dither_wcs(
     wcs,
-    dither_pixels,
-    theta,
+    dither,
+    rotation,
     new_image_origin,
 ):
     """
     dither a wcs. The world origin (sky point at crpix) is shifted by
-    `dither_pixels` and the pixel grid is rotated by `theta` about crpix.
+    `dither` pixels and the pixel grid is rotated by `rotation` about crpix.
 
     Parameters
     ----------
     wcs: galsim WCS
         The galsim wcs.
-    dither_pixels: galsim.PositionD
+    dither: galsim.PositionD
         The shift galsim.PositionD(dx, dy)
-    theta: galsim.Angle
+    rotation: galsim.Angle
         galsim.Angle or None.  e.g. 25.2 * galsim.degrees
     new_image_origin: galsim.PositionD
         New position or None
@@ -98,8 +98,8 @@ def dither_wcs(
 
     # Shift the world origin: move it to where (crpix + dither) pointed.
     # convert dx, dy to du, dv
-    if dither_pixels is not None:
-        dither_array = np.array([dither_pixels.x, dither_pixels.y])
+    if dither is not None:
+        dither_array = np.array([dither.x, dither.y])
         du, dv = J @ dither_array
         new_world_origin = world_origin.deproject(
             du * galsim.degrees,
@@ -110,9 +110,9 @@ def dither_wcs(
         new_world_origin = world_origin
 
     # Rotate the pixel grid about crpix (crpix unchanged).
-    if theta is not None:
-        costheta = np.cos(theta.rad)
-        sintheta = np.sin(theta.rad)
+    if rotation is not None:
+        costheta = np.cos(rotation.rad)
+        sintheta = np.sin(rotation.rad)
         rotmat = np.array(
             [[costheta, -sintheta],
              [sintheta, costheta]]
@@ -132,4 +132,31 @@ def dither_wcs(
         affine=affine,
         world_origin=new_world_origin,
         units=galsim.degrees,
+    )
+
+
+def wcs_with_new_image_origin(
+    wcs,
+    new_image_origin,
+):
+    """
+    Copy the wcs with a new image origin
+
+    Parameters
+    ----------
+    wcs: galsim WCS
+        The galsim wcs.
+    new_image_origin: galsim.PositionD
+        New position or None
+
+    Returns
+    -------
+    wcs
+    """
+
+    return dither_wcs(
+        wcs=wcs,
+        dither=None,
+        rotation=None,
+        new_image_origin=new_image_origin,
     )

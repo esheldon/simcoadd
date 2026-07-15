@@ -51,16 +51,16 @@ def test_coadding_smoke():
     nim = 2
     data = []
     for i in range(nim):
-        dither_pixels = galsim.PositionD(
+        dither = galsim.PositionD(
             rng.uniform(low=-0.5, high=0.5),
             rng.uniform(low=-0.5, high=0.5),
         )
-        dither_theta = rng.uniform(low=0, high=360) * galsim.degrees
+        rotation = rng.uniform(low=0, high=360) * galsim.degrees
 
         wcs = simcoadd.dither_wcs(
             wcs=coadd_wcs,
-            dither_pixels=dither_pixels,
-            theta=dither_theta,
+            dither=dither,
+            rotation=rotation,
             new_image_origin=image_origin,
         )
 
@@ -171,16 +171,16 @@ def test_coadding_preserves_flux_dither():
     flux_sum = 0.0
     wsum = 0.0
     for weightval in weights:
-        dither_pixels = galsim.PositionD(
+        dither = galsim.PositionD(
             rng.uniform(low=-0.5, high=0.5),
             rng.uniform(low=-0.5, high=0.5),
         )
-        dither_theta = rng.uniform(low=0, high=360) * galsim.degrees
+        rotation = rng.uniform(low=0, high=360) * galsim.degrees
 
         wcs = simcoadd.dither_wcs(
             wcs=coadd_wcs,
-            dither_pixels=dither_pixels,
-            theta=dither_theta,
+            dither=dither,
+            rotation=rotation,
             new_image_origin=image_origin,
         )
 

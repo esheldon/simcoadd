@@ -1,5 +1,5 @@
 """
-Code for making ngmix Observations
+Code for making simulated ngmix Observations
 """
 from .psfs import draw_psf_image
 
@@ -46,7 +46,7 @@ def make_obs(
     import ngmix
     import galsim
     from . import drawing
-    from .wcs import dither_wcs
+    from .wcs import wcs_with_new_image_origin
 
     drawing.draw(
         image=image,
@@ -55,7 +55,7 @@ def make_obs(
         shear=shear,
     )
 
-    weight = noise_field.add_to(image)
+    noise_data = noise_field.add_to(image)
 
     gscen = image.true_center
     gsjac = image.wcs.local(image_pos=gscen)
@@ -66,102 +66,43 @@ def make_obs(
     # galsim wants 1 offset
     psf_cen = (psf_dim - 1.0) / 2.0 + 1
     psf_origin = galsim.PositionD(psf_cen, psf_cen)
-    psf_wcs = dither_wcs(
+    psf_wcs = wcs_with_new_image_origin(
         wcs=image.wcs,
-        dither_pixels=None,
-        theta=None,
         new_image_origin=psf_origin,
     )
     psf_im = draw_psf_image(
         psf=psf,
         dim=psf_dim,
         image_pos=gscen,
-        # wcs=gsjac,
         wcs=psf_wcs,
     )
 
-    psf_weight = psf_noise_field.add_to(psf_im)
+    psf_noise_data = psf_noise_field.add_to(psf_im)
 
     psf_obs = ngmix.Observation(
         image=psf_im.array,
-        weight=psf_weight.array,
+        weight=psf_noise_data['weight'].array,
         jacobian=psf_jacobian,
     )
 
     noise_image = image * 0
-    nweight = noise_field.add_to(noise_image)
-    assert np.all(nweight.array == weight.array)
+    noise_data2 = noise_field.add_to(noise_image)
+    assert np.all(noise_data2['weight'].array == noise_data['weight'].array)
 
-    return ngmix.Observation(
+    obs = ngmix.Observation(
         image=image.array,
-        weight=weight.array,
+        weight=noise_data['weight'].array,
         jacobian=jacobian,
         noise=noise_image.array,
         psf=psf_obs,
     )
 
+    if 'nepoch' in noise_data:
+        obs.meta['nepoch'] = noise_data['nepoch'].array
+    else:
+        obs.meta['nepoch'] = obs.image * 0 + 1.0
 
-def make_obs_old(
-    image,
-    psf,
-    psf_dim,
-    noise_field,
-    psf_noise_field,
-):
-    """
-    Create an ngmix Observation from the input data
-
-    Parameters
-    ----------
-    image: galsim Image
-        The image, already drawn with objects and noise.
-    psf: psf object
-        Can be a galsim GSObject or an object with a get_psf(position) method
-    psf_dim: int
-        Dimension of the PSF, so final image has dimensions [psf_dim, psf_dim]
-    noise_field: a noise field
-        e.g. simcoadd.WhiteNoiseField
-    psf_noise_field: a noise field
-        e.g. simcoadd.WhiteNoiseField
-
-    Returns
-    -------
-    ngmix.Observation
-        with a new image set for use with metadetection
-    """
-    import ngmix
-
-    gscen = image.true_center
-    gsjac = image.wcs.local(image_pos=gscen)
-
-    jacobian = _get_image_cen_jacobian(gscen=gscen, gsjac=gsjac)
-    psf_jacobian = _get_psf_jacobian(gsjac=gsjac, dim=psf_dim)
-
-    psf_im = draw_psf_image(
-        psf=psf,
-        dim=psf_dim,
-        image_pos=gscen,
-        wcs=gsjac,
-    )
-
-    psf_weight = psf_noise_field.add_to_array(psf_im.array)
-
-    psf_obs = ngmix.Observation(
-        image=psf_im.array,
-        weight=psf_weight,
-        jacobian=psf_jacobian,
-    )
-
-    noise_image = image * 0
-    weight = noise_field.add_to(noise_image)
-
-    return ngmix.Observation(
-        image=image.array,
-        weight=weight.array,
-        jacobian=jacobian,
-        noise=noise_image.array,
-        psf=psf_obs,
-    )
+    return obs
 
 
 def _get_image_cen_jacobian(gscen, gsjac):

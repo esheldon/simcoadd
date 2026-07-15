@@ -15,7 +15,7 @@ def main():
 
     psf = galsim.Moffat(fwhm=0.8, beta=3.5)
 
-    survey = simcoadd.WLDeblendSurvey(
+    survey = simcoadd.Survey(
         band='i',
         survey_name='LSST',
     )

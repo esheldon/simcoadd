@@ -12,7 +12,7 @@ def main():
     rng = np.random.RandomState(seed)
     shear = galsim.Shear(g1=0.02, g2=0.0)
 
-    survey = simcoadd.WLDeblendSurvey(
+    survey = simcoadd.Survey(
         band='i',
         survey_name='LSST',
     )
@@ -38,7 +38,7 @@ def main():
         pixel_scale=survey.pixel_scale,
     )
 
-    galaxies = simcoadd.WLDeblendGalaxyCatalog(
+    galaxies = simcoadd.WLDBGalaxyCatalog(
         rng=rng,
         layout=layout,
     )
@@ -51,6 +51,11 @@ def main():
 
     psf = simcoadd.PowerSpectrumPSF(
         rng=rng,
+        variation=0.01,
+        fwhm=0.8,
+        g1=0.02,
+        g2=-0.015,
+        beta=3.5,
         im_width=dim,
         buff=dim // 2,
         pixel_scale=survey.pixel_scale,

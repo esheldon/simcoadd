@@ -2,7 +2,7 @@ import numpy as np
 import galsim
 import simcoadd
 from simcoadd import WhiteNoiseField
-from simcoadd.noise.coadd import get_random_edge_mask
+from simcoadd import make_random_dither
 
 
 def _make_coadd_image(dim, theta=None):
@@ -21,17 +21,33 @@ def _make_coadd_image(dim, theta=None):
     return galsim.Image(dim, dim, dtype=float, wcs=wcs)
 
 
-def _make_coadd_noise_field(rng, sigmas, p_edge, dither, rotate):
+def _make_coadd_noise_field(rng, dim, sigmas, p_edge, dither, rotate):
+    nepoch = len(sigmas)
+
     noise_fields = [
         WhiteNoiseField(rng=rng, sigma=sigma)
         for sigma in sigmas
     ]
+    if dither:
+        dithers = [
+            make_random_dither(dim, p_edge, rng)
+            for i in range(nepoch)
+        ]
+    else:
+        dithers = None
+
+    if rotate:
+        rotations = [
+            rng.uniform(low=0, high=360) * galsim.degrees
+            for i in range(nepoch)
+        ]
+    else:
+        rotations = None
+
     return simcoadd.CoaddNoiseField(
         noise_fields=noise_fields,
-        p_edge=p_edge,
-        dither=dither,
-        rotate=rotate,
-        rng=rng,
+        dithers=dithers,
+        rotations=rotations,
     )
 
 
@@ -43,21 +59,30 @@ def _lag1_corr(arr):
 def test_coadd_noise_smoke():
     rng = np.random.RandomState(83832)
 
-    sigmas = rng.normal(scale=0.05, loc=1.0, size=10)
+    dim = 250
+    p_edge = 0.2
+
+    nepoch = 10
+    sigmas = rng.normal(scale=0.05, loc=1.0, size=nepoch)
+
     noise_fields = [
         WhiteNoiseField(rng=rng, sigma=sigma)
         for sigma in sigmas
     ]
+    dithers = [
+        make_random_dither(dim, p_edge, rng)
+        for i in range(nepoch)
+    ]
+    rotations = [
+        rng.uniform(low=0, high=360) * galsim.degrees
+        for i in range(nepoch)
+    ]
 
     coadd_noise_field = simcoadd.CoaddNoiseField(
-        rng=rng,
         noise_fields=noise_fields,
-        p_edge=0.2,
-        dither=True,
-        rotate=True,
+        dithers=dithers,
+        rotations=rotations,
     )
-
-    dim = 250
 
     # galsim wants 1 offset
     cen = (dim - 1.0) / 2.0 + 1
@@ -77,11 +102,10 @@ def test_coadd_noise_smoke():
 
     noise_image = galsim.Image(dim, dim, dtype=float, wcs=wcs)
 
-    coadd_noise_field.add_to(noise_image)
+    noise_data = coadd_noise_field.add_to(noise_image)
 
-    # std = noise_image.array.std()
-    # assert abs(std / noise_sigma - 1) < 0.01
-    # assert np.all(weight.array == 1.0 / noise_sigma ** 2)
+    assert 'image' in noise_data
+    assert 'weight' in noise_data
 
 
 def test_coadd_noise_error_progagation():
@@ -90,23 +114,22 @@ def test_coadd_noise_error_progagation():
     shoudl work
     """
     rng = np.random.RandomState(29882)
+    dim = 350
 
-    sigmas = rng.normal(scale=0.2, loc=1.0, size=10)
+    nepoch = 10
+    sigmas = rng.normal(scale=0.2, loc=1.0, size=nepoch)
     print(sigmas)
+
     noise_fields = [
         WhiteNoiseField(rng=rng, sigma=sigma)
         for sigma in sigmas
     ]
 
     coadd_noise_field = simcoadd.CoaddNoiseField(
-        rng=rng,
         noise_fields=noise_fields,
-        p_edge=0.2,
-        dither=False,
-        rotate=False,
+        dithers=None,
+        rotations=None,
     )
-
-    dim = 350
 
     # galsim wants 1 offset
     cen = (dim - 1.0) / 2.0 + 1
@@ -126,7 +149,9 @@ def test_coadd_noise_error_progagation():
 
     noise_image = galsim.Image(dim, dim, dtype=float, wcs=wcs)
 
-    weight = coadd_noise_field.add_to(noise_image)
+    noise_data = coadd_noise_field.add_to(noise_image)
+
+    weight = noise_data['weight']
 
     std = noise_image.array.std()
     expected_std = np.sqrt(1.0 / np.median(weight.array))
@@ -142,11 +167,13 @@ def test_coadd_noise_weight_uniform():
     rng = np.random.RandomState(551)
     sigmas = [0.7, 1.0, 1.3]
 
+    dim = 101
     cnf = _make_coadd_noise_field(
-        rng=rng, sigmas=sigmas, p_edge=0, dither=True, rotate=True,
+        rng=rng, dim=dim, sigmas=sigmas, p_edge=0, dither=True, rotate=True,
     )
-    image = _make_coadd_image(101)
-    weight = cnf.add_to(image)
+    image = _make_coadd_image(dim)
+    noise_data = cnf.add_to(image)
+    weight = noise_data['weight']
 
     assert np.all(weight.array == weight.array[0, 0])
 
@@ -165,10 +192,12 @@ def test_coadd_noise_identity():
         sigmas = [0.7, 1.0, 1.3]
 
         cnf = _make_coadd_noise_field(
-            rng=rng, sigmas=sigmas, p_edge=0, dither=False, rotate=False,
+            rng=rng, dim=dim, sigmas=sigmas, p_edge=0, dither=False,
+            rotate=False,
         )
         image = _make_coadd_image(dim)
-        weight = cnf.add_to(image)
+        noise_data = cnf.add_to(image)
+        weight = noise_data['weight']
 
         ratio = image.array.var() * weight.array[0, 0]
         assert abs(ratio - 1) < 0.05
@@ -186,14 +215,17 @@ def test_coadd_noise_variance_suppression():
     rng = np.random.RandomState(3311)
     sigmas = [0.7, 1.0, 1.3]
 
+    dim = 101
     ratios = []
     corrs = []
     for i in range(5):
         cnf = _make_coadd_noise_field(
-            rng=rng, sigmas=sigmas, p_edge=0, dither=True, rotate=True,
+            rng=rng, dim=dim, sigmas=sigmas, p_edge=0, dither=True,
+            rotate=True,
         )
-        image = _make_coadd_image(101)
-        weight = cnf.add_to(image)
+        image = _make_coadd_image(dim)
+        noise_data = cnf.add_to(image)
+        weight = noise_data['weight']
 
         ratios.append(image.array.var() * weight.array[0, 0])
         corrs.append(_lag1_corr(image.array))
@@ -219,11 +251,13 @@ def test_coadd_noise_edge_weight_values():
         for i in range(2 ** nepoch)
     ])
 
+    dim = 101
     cnf = _make_coadd_noise_field(
-        rng=rng, sigmas=sigmas, p_edge=1, dither=True, rotate=True,
+        rng=rng, dim=dim, sigmas=sigmas, p_edge=1, dither=True, rotate=True,
     )
-    image = _make_coadd_image(101)
-    weight = cnf.add_to(image)
+    image = _make_coadd_image(dim)
+    noise_data = cnf.add_to(image)
+    weight = noise_data['weight']
 
     uvals = np.unique(weight.array)
     assert uvals.min() >= 0
@@ -242,11 +276,13 @@ def test_coadd_noise_variance_tracks_weight():
     rng = np.random.RandomState(991)
     sigmas = [0.7, 1.0, 1.3]
 
+    dim = 101
     cnf = _make_coadd_noise_field(
-        rng=rng, sigmas=sigmas, p_edge=1, dither=False, rotate=False,
+        rng=rng, dim=dim, sigmas=sigmas, p_edge=1, dither=False, rotate=False,
     )
-    image = _make_coadd_image(101)
-    weight = cnf.add_to(image)
+    image = _make_coadd_image(dim)
+    noise_data = cnf.add_to(image)
+    weight = noise_data['weight']
 
     ntested = 0
     for val in np.unique(weight.array):
@@ -272,21 +308,24 @@ def test_coadd_noise_independent_of_image():
     seed = 8712
     sigmas = [0.7, 1.0, 1.3]
 
+    dim = 51
     rng1 = np.random.RandomState(seed)
     cnf1 = _make_coadd_noise_field(
-        rng=rng1, sigmas=sigmas, p_edge=0.5, dither=True, rotate=True,
+        rng=rng1, dim=dim, sigmas=sigmas, p_edge=0.5, dither=True, rotate=True,
     )
-    image1 = _make_coadd_image(51)
-    weight1 = cnf1.add_to(image1)
+    image1 = _make_coadd_image(dim)
+    ndata1 = cnf1.add_to(image1)
+    weight1 = ndata1['weight']
 
     rng2 = np.random.RandomState(seed)
     cnf2 = _make_coadd_noise_field(
-        rng=rng2, sigmas=sigmas, p_edge=0.5, dither=True, rotate=True,
+        rng=rng2, dim=dim, sigmas=sigmas, p_edge=0.5, dither=True, rotate=True,
     )
-    image2 = _make_coadd_image(51)
+    image2 = _make_coadd_image(dim)
     galsim.Gaussian(fwhm=1.0).drawImage(image=image2)
     obj = image2.array.copy()
-    weight2 = cnf2.add_to(image2)
+    ndata2 = cnf2.add_to(image2)
+    weight2 = ndata2['weight']
 
     np.testing.assert_allclose(
         image2.array - obj,
@@ -302,41 +341,20 @@ def test_coadd_noise_reproducible():
     the same seed gives identical noise and weight
     """
     seed = 55
+    dim = 51
     sigmas = [0.7, 1.0, 1.3]
 
     results = []
     for i in range(2):
         rng = np.random.RandomState(seed)
         cnf = _make_coadd_noise_field(
-            rng=rng, sigmas=sigmas, p_edge=0.5, dither=True, rotate=True,
+            rng=rng, dim=dim, sigmas=sigmas, p_edge=0.5, dither=True,
+            rotate=True,
         )
-        image = _make_coadd_image(51)
-        weight = cnf.add_to(image)
+        image = _make_coadd_image(dim)
+        noise_data = cnf.add_to(image)
+        weight = noise_data['weight']
         results.append((image.array.copy(), weight.array.copy()))
 
     np.testing.assert_array_equal(results[0][0], results[1][0])
     np.testing.assert_array_equal(results[0][1], results[1][1])
-
-
-def test_random_edge_mask():
-    rng = np.random.RandomState(313)
-
-    example = _make_coadd_image(51)
-
-    fracs = []
-    for i in range(100):
-        mask = get_random_edge_mask(rng=rng, example_image=example)
-
-        assert mask.bounds == example.bounds
-        assert mask.wcs == example.wcs
-        assert np.all(np.isin(mask.array, [0.0, 1.0]))
-
-        # the kept side always includes at least one corner
-        frac = 1.0 - mask.array.mean()
-        assert frac < 1.0
-
-        fracs.append(frac)
-
-    # the edges should cut anywhere from nearly nothing to a large fraction
-    assert min(fracs) < 0.1
-    assert max(fracs) > 0.4

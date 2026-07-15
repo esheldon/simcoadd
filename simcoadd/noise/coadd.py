@@ -11,38 +11,48 @@ class CoaddNoiseField:
     ----------
     noise_fields: list of noise fields
         List of noise fields, e.g. WhiteNoiseField
-    p_edge: float
-        Probability of an edge going through the coadd region.
-        For LSST coadd cells this is about 0.2
-    dither: bool
-        If set to True, use translational dithers
-    rotat: bool
-        If set to True, use rotational dithers
-    rng: np.random.RandomState
-        The random number generator
+    dithers: bool
+        List of dithers or None.  Each dither should be a
+        galsim.PositionD in pixels
+    rotations: bool
+        List of rotations or None.  Each rotation should be
+        a galsim.Angle, such as 35.2 * galsim.degrees
     """
 
     def __init__(
         self,
         noise_fields,
-        p_edge,
-        dither,
-        rotate,
-        rng,
+        dithers,
+        rotations,
     ):
         self._noise_fields = noise_fields
-        self._p_edge = p_edge
-        self._dither = dither
-        self._rotate = rotate
-        self._rng = rng
+
+        if dithers is None:
+            dithers = [None] * len(noise_fields)
+
+        if rotations is None:
+            rotations = [None] * len(noise_fields)
+
+        self._dithers = dithers
+        self._rotations = rotations
+
+        if dithers is not None:
+            if len(noise_fields) != len(dithers):
+                raise ValueError(
+                    f'dithers length must match noise_fields, got '
+                    f'{len(dithers)} != {len(noise_fields)}'
+                )
+
+        if rotations is not None:
+            if len(noise_fields) != len(rotations):
+                raise ValueError(
+                    f'rotations length must match noise_fields, got '
+                    f'{len(rotations)} != {len(noise_fields)}'
+                )
 
     @property
     def nepoch(self):
         return len(self._noise_fields)
-
-    @property
-    def p_edge(self):
-        return self._p_edge
 
     def add_to(self, image):
         """
@@ -63,18 +73,17 @@ class CoaddNoiseField:
         """
         from ..coadding import resample_image_and_weight, coadd_images
 
-        rng = self._rng
-
         # list of dict with keys 'image' and 'weight'
         noise_data = [
-            generate_dithered_noise(
+            _generate_dithered_noise(
                 coadd_image=image,
                 noise_field=noise_field,
-                dither=self._dither,
-                rotate=self._rotate,
-                rng=rng,
+                dither=dither,
+                rotation=rotation,
             )
-            for noise_field in self._noise_fields
+            for noise_field, dither, rotation in zip(
+                self._noise_fields, self._dithers, self._rotations,
+            )
         ]
 
         # list of dict with keys 'image' and 'weight'
@@ -86,18 +95,105 @@ class CoaddNoiseField:
             for this_data in noise_data
         ]
 
-        # Add mask images
-        for this_data in resampled_data:
-            if rng.uniform() < self.p_edge:
-                mask = get_random_edge_mask(rng, image)
-                this_data['mask'] = mask
-
         # add to the input image
-        coadd_data = coadd_images(resampled_data)
+        noise_coadd_data = coadd_images(resampled_data)
 
-        image += coadd_data['image']
+        image += noise_coadd_data['image']
 
-        return coadd_data['weight']
+        return noise_coadd_data
+
+
+def _generate_dithered_noise(
+    coadd_image,
+    noise_field,
+    dither,
+    rotation,
+):
+    """
+    Generate a noise image with a random spacial and rotational dither relative
+    to the input coadd_image
+
+    Parameters
+    ----------
+    coadd_image: galsim.Image
+        The reference coadd image, used as a reference wcs and for determining
+        the noise image size.
+    noise_field: noise field
+        e.g. WhiteNoiseField
+    dither: bool
+        If set to True, use translational dithers
+    rotat: bool
+        If set to True, use rotational dithers
+
+    Returns
+    -------
+    dict, with keys
+    image: galsim.Image
+    weight: galsim.Image holding 1/sigma^2
+    """
+    import numpy as np
+    import galsim
+    from ..wcs import dither_wcs
+    from ..coadding import get_min_coverage_dim
+
+    dim = get_min_coverage_dim(dims=coadd_image.array.shape)
+    dims = [dim] * 2
+    center = (np.array(dims) - 1.0) / 2.0
+    new_image_origin = galsim.PositionD(center[1], center[0])
+
+    wcs = dither_wcs(
+        wcs=coadd_image.wcs,
+        dither=dither,
+        rotation=rotation,
+        new_image_origin=new_image_origin,
+    )
+    noise_image = galsim.ImageD(dim, dim, wcs=wcs)
+
+    noise_data = noise_field.add_to(noise_image)
+    weight_image = noise_data['weight']
+
+    return {
+        'image': noise_image,
+        'weight': weight_image,
+    }
+
+
+'''
+def get_random_edge_masks(rng, num, p_edge, example_image):
+    """
+    Get a randomized edge mask with edg hit rate p_edge
+
+    Parameters
+    ----------
+    rng: np.random.RandomState
+        The random number generator.
+    num: int
+        Number of masks to generate
+    p_edge: float
+        Probability of an edge entering the image
+    example_image: galsim.Image
+        An example image to create the output, which will
+        carry the wcs in addition to proper dimensions.
+
+    Returns
+    -------
+    list of masks, with each mask a
+
+    mask: galsim.Image
+        set to 1 if the pixel is kept, 0 if out
+    """
+
+    masks = []
+
+    for i in range(num):
+        if rng.uniform() < p_edge:
+            mask = get_random_edge_mask(rng, example_image)
+        else:
+            mask = example_image * 0 + 1.0
+
+        masks.append(mask)
+
+    return masks
 
 
 def get_random_edge_mask(rng, example_image):
@@ -141,73 +237,4 @@ def get_random_edge_mask(rng, example_image):
     mask = example_image.copy()
     mask.array[:, :] = (proj < off).astype(float)
     return mask
-
-
-def generate_dithered_noise(
-    coadd_image,
-    noise_field,
-    dither,
-    rotate,
-    rng,
-):
-    """
-    Generate a noise image with a random spacial and rotational dither relative
-    to the input coadd_image
-
-    Parameters
-    ----------
-    coadd_image: galsim.Image
-        The reference coadd image, used as a reference wcs and for determining
-        the noise image size.
-    noise_field: noise field
-        e.g. WhiteNoiseField
-    dither: bool
-        If set to True, use translational dithers
-    rotat: bool
-        If set to True, use rotational dithers
-    rng: np.random.RandomState
-        A numpy random number generator
-
-    Returns
-    -------
-    dict, with keys
-    image: galsim.Image
-    weight: galsim.Image holding 1/sigma^2
-    """
-    import numpy as np
-    import galsim
-    from ..wcs import dither_wcs
-    from ..coadding import get_min_coverage_dim
-
-    dim = get_min_coverage_dim(dims=coadd_image.array.shape)
-    dims = [dim] * 2
-    center = (np.array(dims) - 1.0) / 2.0
-    new_image_origin = galsim.PositionD(center[1], center[0])
-
-    if dither:
-        dx, dy = rng.uniform(low=-0.5, high=0.5, size=2)
-        dither_pixels = galsim.PositionD(dx, dy)
-    else:
-        dither_pixels = None
-
-    if rotate:
-        theta = rng.uniform(low=0, high=360) * galsim.degrees
-    else:
-        theta = None
-
-    wcs = dither_wcs(
-        wcs=coadd_image.wcs,
-        dither_pixels=dither_pixels,
-        theta=theta,
-        new_image_origin=new_image_origin,
-    )
-    noise_image = galsim.ImageD(
-        dim, dim, wcs=wcs,
-    )
-
-    weight_image = noise_field.add_to(noise_image)
-
-    return {
-        'image': noise_image,
-        'weight': weight_image,
-    }
+'''

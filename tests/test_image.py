@@ -17,7 +17,7 @@ def test_make_image_smoke():
 
     psf = galsim.Moffat(fwhm=0.8, beta=3.5)
 
-    survey = simcoadd.WLDeblendSurvey(
+    survey = simcoadd.Survey(
         band='i',
         survey_name='LSST',
     )
@@ -80,7 +80,7 @@ def test_wldb_random_smoke():
 
     psf = galsim.Moffat(fwhm=0.8, beta=3.5)
 
-    survey = simcoadd.WLDeblendSurvey(
+    survey = simcoadd.Survey(
         band='i',
         survey_name='LSST',
     )
@@ -106,7 +106,7 @@ def test_wldb_random_smoke():
         pixel_scale=survey.pixel_scale,
     )
 
-    galaxies = simcoadd.WLDeblendGalaxyCatalog(
+    galaxies = simcoadd.WLDBGalaxyCatalog(
         rng=rng,
         layout=layout,
     )
@@ -139,7 +139,7 @@ def test_wldb_random_ps_smoke():
     rng = np.random.RandomState(seed)
     shear = galsim.Shear(g1=0.02, g2=0.0)
 
-    survey = simcoadd.WLDeblendSurvey(
+    survey = simcoadd.Survey(
         band='i',
         survey_name='LSST',
     )
@@ -165,7 +165,7 @@ def test_wldb_random_ps_smoke():
         pixel_scale=survey.pixel_scale,
     )
 
-    galaxies = simcoadd.WLDeblendGalaxyCatalog(
+    galaxies = simcoadd.WLDBGalaxyCatalog(
         rng=rng,
         layout=layout,
     )
@@ -178,6 +178,11 @@ def test_wldb_random_ps_smoke():
 
     psf = simcoadd.PowerSpectrumPSF(
         rng=rng,
+        variation=0.01,
+        fwhm=0.8,
+        g1=0.01,
+        g2=-0.02,
+        beta=3.5,
         im_width=dim,
         buff=dim // 2,
         pixel_scale=survey.pixel_scale,
