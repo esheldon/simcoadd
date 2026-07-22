@@ -9,7 +9,7 @@ from . import obs
 from .obs import make_obs
 
 from . import galaxies
-from .galaxies import FixedGalaxyCatalog, WLDBGalaxyCatalog
+from .galaxies import FixedGalaxyCatalog, WLDBGalaxyCatalog, WLDBKnotsGalaxyCatalog
 
 from . import noise
 from .noise import WhiteNoiseField, CoaddNoiseField

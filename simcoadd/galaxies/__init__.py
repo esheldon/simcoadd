@@ -5,3 +5,6 @@ from .fixed import FixedGalaxyCatalog
 
 from . import wldb
 from .wldb import WLDBGalaxyCatalog, get_wldb_density
+
+from . import wldb_knots
+from .wldb_knots import WLDBKnotsGalaxyCatalog
