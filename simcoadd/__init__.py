@@ -12,7 +12,7 @@ from . import galaxies
 from .galaxies import FixedGalaxyCatalog, WLDBGalaxyCatalog, WLDBKnotsGalaxyCatalog
 
 from . import noise
-from .noise import WhiteNoiseField, CoaddNoiseField
+from .noise import WhiteNoiseField, CoaddNoiseField, SourcePoissonNoiseField
 
 from . import dithers
 from .dithers import make_random_dither
