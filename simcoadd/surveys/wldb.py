@@ -43,6 +43,11 @@ class Survey(object):
         self.flux_factor = get_wldb_rescale_fac(self.descwl_survey)
         self.noise = np.sqrt(svy.mean_sky_level) * self.flux_factor
 
+        # electrons per flux unit: wldeblend works in electrons, so a
+        # flux F in our units is F / flux_factor electrons and its
+        # Poisson variance in flux units is F / gain
+        self.gain = 1.0 / self.flux_factor
+
         self.pixel_scale = pars['pixel_scale']
 
         if survey_name == "HSC":

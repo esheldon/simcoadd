@@ -29,7 +29,10 @@ def make_obs(
     shear: galsim.Shear
         The shear to apply.  In the future this will allow other types.
     noise_field: noise field
-        e.g. WhiteNoiseField, CoaddNoiseField
+        e.g. WhiteNoiseField, CoaddNoiseField, or SourcePoissonNoiseField,
+        which also receives the noiseless image to set the source
+        variance. It is duck typed so you can create your own.  It just
+        needs either the add_to method or add_to_with_model method.
     psf: psf object
         Can be a galsim GSObject or an object with a get_psf(position) method
     psf_dim: int
@@ -55,7 +58,10 @@ def make_obs(
         shear=shear,
     )
 
-    noise_data = noise_field.add_to(image)
+    # the noiseless image, for noise that depends on the sources
+    model = image.copy()
+
+    noise_data = _add_noise(noise_field=noise_field, image=image, model=model)
 
     gscen = image.true_center
     gsjac = image.wcs.local(image_pos=gscen)
@@ -86,7 +92,9 @@ def make_obs(
     )
 
     noise_image = image * 0
-    noise_data2 = noise_field.add_to(noise_image)
+    noise_data2 = _add_noise(
+        noise_field=noise_field, image=noise_image, model=model,
+    )
     assert np.all(noise_data2['weight'].array == noise_data['weight'].array)
 
     obs = ngmix.Observation(
@@ -103,6 +111,18 @@ def make_obs(
         obs.meta['nepoch'] = obs.image * 0 + 1.0
 
     return obs
+
+
+def _add_noise(noise_field, image, model):
+    """
+    add noise to the image; fiels such as the source poisson field also need
+    the noiseless model image
+    """
+
+    if hasattr(noise_field, 'add_to_with_model'):
+        return noise_field.add_to_with_model(image, model=model)
+    else:
+        return noise_field.add_to(image)
 
 
 def _get_image_cen_jacobian(gscen, gsjac):
