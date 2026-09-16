@@ -13,7 +13,7 @@ simulation time would dominate if objects were drawn for all epochs
 import numpy as np
 import galsim
 import simcoadd
-from simcoadd import WhiteNoiseField, make_random_dither
+from simcoadd import ImageNoiseField, make_random_dither
 from simcoadd import vis
 import matplotlib.pyplot as mplt
 
@@ -42,10 +42,15 @@ def main():
     # 10% variation in noise level
     sigmas = rng.normal(scale=sigma_per * 0.1, loc=sigma_per, size=nepoch)
 
-    # each input noise field is white before resampling
+    # each epoch has white sky noise plus source poisson noise before
+    # resampling.  The survey gain is apportioned over the epochs by
+    # their share of the sky weight, so the coadded source variance is
+    # model / survey.gain
+    weights = 1.0 / sigmas**2
+    gains = survey.gain * weights / weights.sum()
     noise_fields = [
-        WhiteNoiseField(rng=rng, sigma=sigma)
-        for sigma in sigmas
+        ImageNoiseField(rng=rng, sigma=sigma, gain=gain)
+        for sigma, gain in zip(sigmas, gains)
     ]
     # random dithers, with p_edge probability to git an edge
     dithers = [

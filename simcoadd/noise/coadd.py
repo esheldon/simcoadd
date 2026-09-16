@@ -7,10 +7,20 @@ class CoaddNoiseField:
     """
     Generate noise for a coadd.  No complex wcs
 
+    Each epoch field draws its noise on its own dithered and rotated
+    frame, given the model resampled onto that frame, and the epoch
+    noise is resampled back and coadded with a scalar weight per epoch
+    from the sigma clipped mean of the epoch variance plane.  The
+    output variance plane is the weighted combination of the resampled
+    epoch variance planes, so the source term of the epochs is carried
+    through in the same way as the noise.
+
     Parameters
     ----------
     noise_fields: list of noise fields
-        List of noise fields, e.g. WhiteNoiseField
+        List of noise fields, e.g. ImageNoiseField.  Each must provide
+        add_to(image, model), returning a dict with 'image' (the noise
+        added) and 'weight' (1 / variance per pixel, positive)
     dithers: bool
         List of dithers or None.  Each dither should be a
         galsim.PositionD in pixels
@@ -54,29 +64,47 @@ class CoaddNoiseField:
     def nepoch(self):
         return len(self._noise_fields)
 
-    def add_to(self, image):
+    def add_to(self, image, model):
         """
-        Add noise to the input galsim image and return the weight map.
-
-        Noise realizations are drawn from the input fields with random
-        rotations and pixel-level dithers.
+        Add coadded noise to the input galsim image and return the noise
+        and weight map.
 
         Parameters
         ----------
         image: galsim Image
             The image in which to add the noise
+        model: galsim Image
+            The noiseless image, in flux units, on the same grid as
+            image.  It is resampled onto each epoch frame and passed to
+            the epoch field
 
         Returns
         -------
-        weight: galsim.Image
-            Holds values 1 / sigma ** 2 from the weighted sum
+        dict with keys
+            image: galsim.Image
+                The coadded noise that was added
+            weight: galsim.Image
+                1 / variance of the coadd, from the weighted combination
+                of the epoch variance planes; zero where no epoch covers
+            wsum: galsim.Image
+                The sum of the scalar epoch weights; the weight the coadd
+                would have with no source term
+            nepoch: galsim.Image
+                The number of epochs contributing to each pixel
         """
         from ..coadding import resample_image_and_weight, coadd_images
+
+        if model.array.shape != image.array.shape:
+            raise ValueError(
+                f'model shape {model.array.shape} does not match image '
+                f'shape {image.array.shape}'
+            )
 
         # list of dict with keys 'image' and 'weight'
         noise_data = [
             _generate_dithered_noise(
                 coadd_image=image,
+                model=model,
                 noise_field=noise_field,
                 dither=dither,
                 rotation=rotation,
@@ -86,7 +114,7 @@ class CoaddNoiseField:
             )
         ]
 
-        # list of dict with keys 'image' and 'weight'
+        # list of dict with keys 'image', 'weight' and 'variance'
         resampled_data = [
             resample_image_and_weight(
                 data=this_data,
@@ -105,6 +133,7 @@ class CoaddNoiseField:
 
 def _generate_dithered_noise(
     coadd_image,
+    model,
     noise_field,
     dither,
     rotation,
@@ -118,8 +147,11 @@ def _generate_dithered_noise(
     coadd_image: galsim.Image
         The reference coadd image, used as a reference wcs and for determining
         the noise image size.
+    model: galsim.Image
+        The noiseless model on the coadd grid, resampled onto the epoch
+        frame for the noise field
     noise_field: noise field
-        e.g. WhiteNoiseField
+        e.g. ImageNoiseField
     dither: bool
         If set to True, use translational dithers
     rotat: bool
@@ -134,7 +166,7 @@ def _generate_dithered_noise(
     import numpy as np
     import galsim
     from ..wcs import dither_wcs
-    from ..coadding import get_min_coverage_dim
+    from ..coadding import get_min_coverage_dim, resample_onto_image
 
     dim = get_min_coverage_dim(dims=coadd_image.array.shape)
     dims = [dim] * 2
@@ -149,92 +181,13 @@ def _generate_dithered_noise(
     )
     noise_image = galsim.ImageD(dim, dim, wcs=wcs)
 
-    noise_data = noise_field.add_to(noise_image)
+    epoch_model = noise_image * 0
+    resample_onto_image(image=model, output_image=epoch_model)
+
+    noise_data = noise_field.add_to(noise_image, epoch_model)
     weight_image = noise_data['weight']
 
     return {
         'image': noise_image,
         'weight': weight_image,
     }
-
-
-'''
-def get_random_edge_masks(rng, num, p_edge, example_image):
-    """
-    Get a randomized edge mask with edg hit rate p_edge
-
-    Parameters
-    ----------
-    rng: np.random.RandomState
-        The random number generator.
-    num: int
-        Number of masks to generate
-    p_edge: float
-        Probability of an edge entering the image
-    example_image: galsim.Image
-        An example image to create the output, which will
-        carry the wcs in addition to proper dimensions.
-
-    Returns
-    -------
-    list of masks, with each mask a
-
-    mask: galsim.Image
-        set to 1 if the pixel is kept, 0 if out
-    """
-
-    masks = []
-
-    for i in range(num):
-        if rng.uniform() < p_edge:
-            mask = get_random_edge_mask(rng, example_image)
-        else:
-            mask = example_image * 0 + 1.0
-
-        masks.append(mask)
-
-    return masks
-
-
-def get_random_edge_mask(rng, example_image):
-    """
-    Get a randomized edge mask
-
-    Parameters
-    ----------
-    rng: np.random.RandomState
-        The random number generator.
-    example_image: galsim.Image
-        An example image to create the output, which will
-        carry the wcs in addition to proper dimensions.
-
-    Returns
-    -------
-    mask: galsim.Image
-        set to 1 if the pixel is kept, 0 if out
-    """
-    import numpy as np
-
-    dims = example_image.array.shape
-
-    cen = (np.array(dims) - 1.0) / 2.0
-
-    yy, xx = np.mgrid[
-        0:dims[0],
-        0:dims[1],
-    ]
-
-    phi = rng.uniform(0.0, 2.0 * np.pi)
-    cosphi = np.cos(phi)
-    sinphi = np.sin(phi)
-    off = rng.uniform(-1.0, 1.0)
-
-    proj = (
-        (xx - cen[1]) * cosphi / (dims[1] / 2.0) +
-        (yy - cen[0]) * sinphi / (dims[0] / 2.0)
-    )
-
-    mask = example_image.copy()
-    mask.array[:, :] = (proj < off).astype(float)
-    return mask
-'''

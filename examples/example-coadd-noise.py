@@ -1,7 +1,7 @@
 import numpy as np
 import galsim
 import simcoadd
-from simcoadd import vis, WhiteNoiseField
+from simcoadd import vis, ImageNoiseField
 from simcoadd import make_random_dither
 import matplotlib.pyplot as mplt
 
@@ -32,8 +32,9 @@ def main():
 
     noise_image = galsim.Image(dim, dim, dtype=float, wcs=wcs)
 
-    white_noise_fields = [
-        WhiteNoiseField(rng=rng, sigma=sigma)
+    # no sources here, so the gain does not matter
+    epoch_noise_fields = [
+        ImageNoiseField(rng=rng, sigma=sigma, gain=1.0)
         for sigma in sigmas
     ]
 
@@ -47,12 +48,13 @@ def main():
     ]
 
     noise_field = simcoadd.CoaddNoiseField(
-        noise_fields=white_noise_fields,
+        noise_fields=epoch_noise_fields,
         dithers=dithers,
         rotations=rotations,
     )
 
-    ndata = noise_field.add_to(noise_image)
+    # an empty model: pure sky noise
+    ndata = noise_field.add_to(noise_image, noise_image * 0)
 
     with mplt.style.context('dark_background'):
         fig, axs = mplt.subplots(ncols=2, nrows=2, figsize=(10, 10))

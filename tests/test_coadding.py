@@ -85,9 +85,37 @@ def test_coadding_smoke():
         for this_data in data
     ]
 
+    for rdata in resampled_data:
+        assert 'variance' in rdata
+
     coadd_data = coadd_images(resampled_data)
     assert 'image' in coadd_data
     assert 'weight' in coadd_data
+    assert 'wsum' in coadd_data
+    assert 'nepoch' in coadd_data
+
+    # unit weights everywhere: the coadd weight is the number of
+    # contributing epochs
+    covered = coadd_data['wsum'].array > 0
+    assert np.all(covered)
+    np.testing.assert_allclose(coadd_data['weight'].array, nim)
+    np.testing.assert_allclose(coadd_data['wsum'].array, nim)
+
+
+def test_clipped_mean():
+    from simcoadd.coadding import clipped_mean
+
+    rng = np.random.RandomState(31)
+    values = np.ones(10000)
+    assert clipped_mean(values) == 1.0
+
+    # a few percent of the pixels far above the rest are clipped out
+    values[:300] = 100.0
+    assert clipped_mean(values) == 1.0
+
+    values = rng.normal(size=10000)
+    values[:100] = 50.0
+    assert abs(clipped_mean(values)) < 0.05
 
 
 def test_coadding_preserves_flux_nodither():
