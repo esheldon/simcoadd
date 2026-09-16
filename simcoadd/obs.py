@@ -31,7 +31,8 @@ def make_obs(
     noise_field: noise field
         e.g. WhiteNoiseField, CoaddNoiseField, or SourcePoissonNoiseField,
         which also receives the noiseless image to set the source
-        variance
+        variance. It is duck typed so you can create your own.  It just
+        needs either the add_to method or add_to_with_model method.
     psf: psf object
         Can be a galsim GSObject or an object with a get_psf(position) method
     psf_dim: int
@@ -114,14 +115,14 @@ def make_obs(
 
 def _add_noise(noise_field, image, model):
     """
-    add noise to the image; the source poisson field also needs the
-    noiseless model image
+    add noise to the image; fiels such as the source poisson field also need
+    the noiseless model image
     """
-    from .noise import SourcePoissonNoiseField
 
-    if isinstance(noise_field, SourcePoissonNoiseField):
-        return noise_field.add_to(image, model=model)
-    return noise_field.add_to(image)
+    if hasattr(noise_field, 'add_to_with_model'):
+        return noise_field.add_to_with_model(image, model=model)
+    else:
+        return noise_field.add_to(image)
 
 
 def _get_image_cen_jacobian(gscen, gsjac):

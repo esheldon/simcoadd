@@ -32,11 +32,12 @@ class SourcePoissonNoiseField:
     def __init__(self, rng, base, gain):
         if gain <= 0:
             raise ValueError(f'gain must be positive, got {gain}')
+
         self.rng = rng
         self.base = base
         self.gain = gain
 
-    def add_to(self, image, model):
+    def add_to_with_model(self, image, model):
         """
         Add sky noise from the base field plus the source Poisson noise
         to the input galsim image and return the noise and weight map.
@@ -65,6 +66,7 @@ class SourcePoissonNoiseField:
         data = self.base.add_to(image)
 
         source_var = np.clip(model.array, 0, None) / self.gain
+
         source_noise = self.rng.normal(size=source_var.shape) * np.sqrt(
             source_var
         )
@@ -73,8 +75,10 @@ class SourcePoissonNoiseField:
         data['image'].array[:, :] += source_noise
 
         weight = data['weight'].array
-        covered = weight > 0
+
         var = np.zeros_like(weight)
+
+        covered = weight > 0
         var[covered] = 1.0 / weight[covered] + source_var[covered]
         weight[covered] = 1.0 / var[covered]
 

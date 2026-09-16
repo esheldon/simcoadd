@@ -38,7 +38,7 @@ def test_source_poisson_weight_and_variance():
         base=simcoadd.WhiteNoiseField(rng=rng, sigma=sigma),
         gain=gain,
     )
-    data = noise_field.add_to(image, model=model)
+    data = noise_field.add_to_with_model(image, model=model)
 
     expected_var = sigma**2 + np.clip(model.array, 0, None) / gain
     assert np.allclose(data['weight'].array, 1.0 / expected_var)
@@ -69,7 +69,7 @@ def test_source_poisson_negative_model_no_variance():
         base=simcoadd.WhiteNoiseField(rng=rng, sigma=sigma),
         gain=10.0,
     )
-    data = noise_field.add_to(image, model=model)
+    data = noise_field.add_to_with_model(image, model=model)
     assert np.allclose(data['weight'].array, 1.0 / sigma**2)
 
 
