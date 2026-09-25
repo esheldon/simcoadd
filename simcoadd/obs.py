@@ -13,6 +13,7 @@ def make_obs(
     psf_dim,
     psf_noise_field,
     realization_noise_field=None,
+    shear_positions=True,
 ):
     """
     Create an ngmix Observation from the input data
@@ -50,6 +51,9 @@ def make_obs(
         construction with the ImageNoiseField median option set, which
         draws each image at the median of its variance plane as for
         real coadds.  Default None, meaning noise_field is used
+    shear_positions: bool
+        Passed to drawing.draw: shear the positions about the WCS origin
+        (default) or only the shapes, each about its own centre
 
     Returns
     -------
@@ -67,6 +71,7 @@ def make_obs(
         psf=psf,
         obj_data=obj_data,
         shear=shear,
+        shear_positions=shear_positions,
     )
 
     # the noiseless image, for noise that depends on the sources

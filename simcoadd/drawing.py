@@ -3,6 +3,7 @@ def draw(
     psf,
     obj_data,
     shear,
+    shear_positions=True,
 ):
     """
     Draw the objects into the input image
@@ -21,6 +22,11 @@ def draw(
             index: index into original catalog or None
     shear: galsim.Shear
         The shear to apply.  In the future this will allow other types.
+    shear_positions: bool
+        If True (the default) the whole scene is sheared about the WCS
+        origin, positions included.  If False only the shapes are
+        sheared, each object about its own centre, and the positions stay
+        put: a shear-response test then needs no shear origin.
     """
 
     import galsim
@@ -34,7 +40,10 @@ def draw(
         obj = odata['obj'].shear(shear)
         shift = odata['shift']
 
-        lensed_shift = shift.shear(shear)
+        if shear_positions:
+            lensed_shift = shift.shear(shear)
+        else:
+            lensed_shift = shift
 
         # Deproject from u, v onto sphere. Then use wcs to get to image pos.
         world_pos = wcs_world_origin.deproject(
