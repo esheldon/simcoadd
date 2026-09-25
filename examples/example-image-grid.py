@@ -2,7 +2,7 @@
 Simulation with
     - Fixed exponential galaxies
     - Grid layout
-    - White noise field
+    - White sky noise plus source poisson noise
     - Moffat PSF
 """
 import numpy as np
@@ -57,8 +57,10 @@ def main():
         mag=22,
     )
 
-    # white noise field
-    noise_gen = simcoadd.WhiteNoiseField(rng=rng, sigma=survey.noise)
+    # sky noise plus source poisson noise
+    noise_gen = simcoadd.ImageNoiseField(
+        rng=rng, sigma=survey.noise, gain=survey.gain,
+    )
 
     # extract the object data.  This is a list of dictionaries
     # containing the 'obj', 'redshift', 'index', 'shift'
@@ -75,8 +77,9 @@ def main():
         shear=shear,
     )
 
-    # add noise
-    noise_gen.add_to(gsimage)
+    # add noise; the noiseless model sets the source variance
+    model = gsimage.copy()
+    noise_gen.add_to(gsimage, model)
 
     simcoadd.vis.show_image(
         image=gsimage.array,

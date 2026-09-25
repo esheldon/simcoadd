@@ -48,7 +48,11 @@ def main():
         mag=22,
     )
 
-    noise_field = simcoadd.WhiteNoiseField(rng=rng, sigma=survey.noise)
+    # sky noise plus source poisson noise for the image; the psf is a
+    # model so it gets only a low level of white noise
+    noise_field = simcoadd.ImageNoiseField(
+        rng=rng, sigma=survey.noise, gain=survey.gain,
+    )
     psf_noise_field = simcoadd.WhiteNoiseField(rng=rng, sigma=1.0e-6)
 
     obj_data = galaxies.get_obj_data(survey)

@@ -1,7 +1,7 @@
 import numpy as np
 import galsim
 import simcoadd
-from simcoadd import WhiteNoiseField
+from simcoadd import ImageNoiseField
 from simcoadd import make_random_dither
 
 
@@ -21,12 +21,23 @@ def _make_coadd_image(dim, theta=None):
     return galsim.Image(dim, dim, dtype=float, wcs=wcs)
 
 
-def _make_coadd_noise_field(rng, dim, sigmas, p_edge, dither, rotate):
+def _epoch_gains(sigmas, gain):
+    """
+    apportion the coadd gain over the epochs by their share of the sky
+    weight, so the coadded source variance is model / gain
+    """
+    weights = 1.0 / np.array(sigmas)**2
+    return gain * weights / weights.sum()
+
+
+def _make_coadd_noise_field(
+    rng, dim, sigmas, p_edge, dither, rotate, gain=1.0, median=False,
+):
     nepoch = len(sigmas)
 
     noise_fields = [
-        WhiteNoiseField(rng=rng, sigma=sigma)
-        for sigma in sigmas
+        ImageNoiseField(rng=rng, sigma=sigma, gain=epoch_gain, median=median)
+        for sigma, epoch_gain in zip(sigmas, _epoch_gains(sigmas, gain))
     ]
     if dither:
         dithers = [
@@ -66,7 +77,7 @@ def test_coadd_noise_smoke():
     sigmas = rng.normal(scale=0.05, loc=1.0, size=nepoch)
 
     noise_fields = [
-        WhiteNoiseField(rng=rng, sigma=sigma)
+        ImageNoiseField(rng=rng, sigma=sigma, gain=1.0)
         for sigma in sigmas
     ]
     dithers = [
@@ -84,28 +95,14 @@ def test_coadd_noise_smoke():
         rotations=rotations,
     )
 
-    # galsim wants 1 offset
-    cen = (dim - 1.0) / 2.0 + 1
+    noise_image = _make_coadd_image(dim, theta=30 * galsim.degrees)
 
-    image_origin = galsim.PositionD(cen, cen)
-
-    world_origin = galsim.CelestialCoord(
-        ra=18.0 * galsim.degrees,
-        dec=-12.0 * galsim.degrees,
-    )
-    wcs = simcoadd.make_wcs(
-        pixel_scale=0.2,
-        image_origin=image_origin,
-        world_origin=world_origin,
-        theta=30 * galsim.degrees,
-    )
-
-    noise_image = galsim.Image(dim, dim, dtype=float, wcs=wcs)
-
-    noise_data = coadd_noise_field.add_to(noise_image)
+    noise_data = coadd_noise_field.add_to(noise_image, noise_image * 0)
 
     assert 'image' in noise_data
     assert 'weight' in noise_data
+    assert 'wsum' in noise_data
+    assert 'nepoch' in noise_data
 
 
 def test_coadd_noise_error_progagation():
@@ -121,7 +118,7 @@ def test_coadd_noise_error_progagation():
     print(sigmas)
 
     noise_fields = [
-        WhiteNoiseField(rng=rng, sigma=sigma)
+        ImageNoiseField(rng=rng, sigma=sigma, gain=1.0)
         for sigma in sigmas
     ]
 
@@ -131,25 +128,9 @@ def test_coadd_noise_error_progagation():
         rotations=None,
     )
 
-    # galsim wants 1 offset
-    cen = (dim - 1.0) / 2.0 + 1
+    noise_image = _make_coadd_image(dim, theta=30 * galsim.degrees)
 
-    image_origin = galsim.PositionD(cen, cen)
-
-    world_origin = galsim.CelestialCoord(
-        ra=18.0 * galsim.degrees,
-        dec=-12.0 * galsim.degrees,
-    )
-    wcs = simcoadd.make_wcs(
-        pixel_scale=0.2,
-        image_origin=image_origin,
-        world_origin=world_origin,
-        theta=30 * galsim.degrees,
-    )
-
-    noise_image = galsim.Image(dim, dim, dtype=float, wcs=wcs)
-
-    noise_data = coadd_noise_field.add_to(noise_image)
+    noise_data = coadd_noise_field.add_to(noise_image, noise_image * 0)
 
     weight = noise_data['weight']
 
@@ -172,12 +153,15 @@ def test_coadd_noise_weight_uniform():
         rng=rng, dim=dim, sigmas=sigmas, p_edge=0, dither=True, rotate=True,
     )
     image = _make_coadd_image(dim)
-    noise_data = cnf.add_to(image)
+    noise_data = cnf.add_to(image, image * 0)
     weight = noise_data['weight']
+    wsum = noise_data['wsum']
 
-    assert np.all(weight.array == weight.array[0, 0])
+    assert np.all(wsum.array == wsum.array[0, 0])
 
     expected = np.sum(1.0 / np.array(sigmas) ** 2)
+    np.testing.assert_allclose(wsum.array, expected, rtol=1.0e-12)
+    # with no source term the variance plane is exactly 1/wsum
     np.testing.assert_allclose(weight.array, expected, rtol=1.0e-12)
 
 
@@ -196,7 +180,7 @@ def test_coadd_noise_identity():
             rotate=False,
         )
         image = _make_coadd_image(dim)
-        noise_data = cnf.add_to(image)
+        noise_data = cnf.add_to(image, image * 0)
         weight = noise_data['weight']
 
         ratio = image.array.var() * weight.array[0, 0]
@@ -224,7 +208,7 @@ def test_coadd_noise_variance_suppression():
             rotate=True,
         )
         image = _make_coadd_image(dim)
-        noise_data = cnf.add_to(image)
+        noise_data = cnf.add_to(image, image * 0)
         weight = noise_data['weight']
 
         ratios.append(image.array.var() * weight.array[0, 0])
@@ -256,7 +240,7 @@ def test_coadd_noise_edge_weight_values():
         rng=rng, dim=dim, sigmas=sigmas, p_edge=1, dither=True, rotate=True,
     )
     image = _make_coadd_image(dim)
-    noise_data = cnf.add_to(image)
+    noise_data = cnf.add_to(image, image * 0)
     weight = noise_data['weight']
 
     uvals = np.unique(weight.array)
@@ -265,6 +249,10 @@ def test_coadd_noise_edge_weight_values():
 
     for val in uvals:
         assert np.any(np.isclose(val, allowed, rtol=1.0e-12, atol=1.0e-12))
+
+    np.testing.assert_allclose(
+        noise_data['wsum'].array, weight.array, rtol=1.0e-12,
+    )
 
 
 def test_coadd_noise_variance_tracks_weight():
@@ -281,7 +269,7 @@ def test_coadd_noise_variance_tracks_weight():
         rng=rng, dim=dim, sigmas=sigmas, p_edge=1, dither=False, rotate=False,
     )
     image = _make_coadd_image(dim)
-    noise_data = cnf.add_to(image)
+    noise_data = cnf.add_to(image, image * 0)
     weight = noise_data['weight']
 
     ntested = 0
@@ -314,7 +302,7 @@ def test_coadd_noise_independent_of_image():
         rng=rng1, dim=dim, sigmas=sigmas, p_edge=0.5, dither=True, rotate=True,
     )
     image1 = _make_coadd_image(dim)
-    ndata1 = cnf1.add_to(image1)
+    ndata1 = cnf1.add_to(image1, image1 * 0)
     weight1 = ndata1['weight']
 
     rng2 = np.random.RandomState(seed)
@@ -324,7 +312,7 @@ def test_coadd_noise_independent_of_image():
     image2 = _make_coadd_image(dim)
     galsim.Gaussian(fwhm=1.0).drawImage(image=image2)
     obj = image2.array.copy()
-    ndata2 = cnf2.add_to(image2)
+    ndata2 = cnf2.add_to(image2, image2 * 0)
     weight2 = ndata2['weight']
 
     np.testing.assert_allclose(
@@ -352,9 +340,167 @@ def test_coadd_noise_reproducible():
             rotate=True,
         )
         image = _make_coadd_image(dim)
-        noise_data = cnf.add_to(image)
+        noise_data = cnf.add_to(image, image * 0)
         weight = noise_data['weight']
         results.append((image.array.copy(), weight.array.copy()))
 
     np.testing.assert_array_equal(results[0][0], results[1][0])
     np.testing.assert_array_equal(results[0][1], results[1][1])
+
+
+def _make_patch_model(dim, flux):
+    """
+    a bright flat patch in the middle of the coadd, covering a few
+    percent of the epoch frame as sources do, so the sigma clip of the
+    epoch variance plane rejects it
+    """
+    model = _make_coadd_image(dim)
+    size = dim // 5
+    lo = (dim - size) // 2
+    hi = lo + size
+    model.array[lo:hi, lo:hi] = flux
+    return model, (lo, hi)
+
+
+def test_coadd_noise_source_term_identity():
+    """
+    with no dither or rotation the resampling is an identity: the
+    variance plane at a flat source is exactly sky + model/gain and the
+    noise variance tracks it
+    """
+    rng = np.random.RandomState(4412)
+    sigmas = [0.7, 1.0, 1.3]
+    gain = 10.0
+    flux = 100.0
+    dim = 400
+
+    cnf = _make_coadd_noise_field(
+        rng=rng, dim=dim, sigmas=sigmas, p_edge=0, dither=False,
+        rotate=False, gain=gain,
+    )
+    model, (lo, hi) = _make_patch_model(dim, flux)
+    image = model.copy()
+    noise_data = cnf.add_to(image, model)
+    weight = noise_data['weight']
+
+    sky_var = 1.0 / np.sum(1.0 / np.array(sigmas)**2)
+
+    # the sigma clip removes the patch from the epoch weights
+    np.testing.assert_allclose(noise_data['wsum'].array, 1 / sky_var)
+
+    inside = np.s_[lo + 5:hi - 5, lo + 5:hi - 5]
+    outside = np.s_[:lo - 5, :lo - 5]
+    np.testing.assert_allclose(
+        1 / weight.array[inside], sky_var + flux / gain, rtol=1.0e-6,
+    )
+    np.testing.assert_allclose(1 / weight.array[outside], sky_var)
+
+    noise = image.array - model.array
+    assert abs(noise[inside].var() * weight.array[inside][0, 0] - 1) < 0.05
+    assert abs(noise[outside].var() * weight.array[outside][0, 0] - 1) < 0.05
+
+
+def test_coadd_noise_source_term_correlated():
+    """
+    with dithers and rotations the source noise goes through the same
+    resampling as the sky noise: the variance suppression and the pixel
+    correlation are the same at the source as in the sky, and the
+    variance plane at the flat source is sky + model/gain
+    """
+    rng = np.random.RandomState(7781)
+    sigmas = [0.7, 1.0, 1.3]
+    gain = 10.0
+    flux = 100.0
+    dim = 400
+
+    cnf = _make_coadd_noise_field(
+        rng=rng, dim=dim, sigmas=sigmas, p_edge=0, dither=True,
+        rotate=True, gain=gain,
+    )
+    model, (lo, hi) = _make_patch_model(dim, flux)
+    image = model.copy()
+    noise_data = cnf.add_to(image, model)
+    weight = noise_data['weight']
+
+    # the resampled patch edges ring at a low level, and those pixels
+    # survive the clip, so the epoch weights sit slightly below the sky
+    # weight
+    sky_var = 1.0 / np.sum(1.0 / np.array(sigmas)**2)
+    np.testing.assert_allclose(
+        noise_data['wsum'].array, 1 / sky_var, rtol=1.0e-3,
+    )
+
+    inside = np.s_[lo + 5:hi - 5, lo + 5:hi - 5]
+    outside = np.s_[:lo - 5, :lo - 5]
+    np.testing.assert_allclose(
+        1 / weight.array[inside], sky_var + flux / gain, rtol=1.0e-3,
+    )
+    np.testing.assert_allclose(
+        1 / weight.array[outside], sky_var, rtol=1.0e-3,
+    )
+
+    noise = image.array - model.array
+    ratio_in = noise[inside].var() * weight.array[inside].mean()
+    ratio_out = noise[outside].var() * weight.array[outside].mean()
+    corr_in = _lag1_corr(noise[inside])
+    corr_out = _lag1_corr(noise[outside])
+
+    # see test_coadd_noise_variance_suppression for the expected levels
+    assert 0.70 < ratio_in < 0.90
+    assert abs(ratio_in / ratio_out - 1) < 0.10
+    assert 0.08 < corr_in < 0.22
+    assert abs(corr_in - corr_out) < 0.04
+
+
+def test_coadd_noise_median_epochs():
+    """
+    with median epochs the coadded noise has the sky variance at the
+    source, with the same correlation, while the weight map is the
+    same as for per-pixel epochs
+    """
+    seed = 2231
+    sigmas = [0.7, 1.0, 1.3]
+    gain = 10.0
+    flux = 100.0
+    dim = 400
+
+    model, (lo, hi) = _make_patch_model(dim, flux)
+    inside = np.s_[lo + 5:hi - 5, lo + 5:hi - 5]
+    outside = np.s_[:lo - 5, :lo - 5]
+
+    results = {}
+    for median in (False, True):
+        rng = np.random.RandomState(seed)
+        cnf = _make_coadd_noise_field(
+            rng=rng, dim=dim, sigmas=sigmas, p_edge=0, dither=True,
+            rotate=True, gain=gain, median=median,
+        )
+        image = model.copy()
+        noise_data = cnf.add_to(image, model)
+        results[median] = (image.array - model.array, noise_data)
+
+    noise_pixel, data_pixel = results[False]
+    noise_median, data_median = results[True]
+
+    np.testing.assert_array_equal(
+        data_median['weight'].array, data_pixel['weight'].array,
+    )
+    np.testing.assert_array_equal(
+        data_median['wsum'].array, data_pixel['wsum'].array,
+    )
+
+    # the median epochs draw at the sky level everywhere: the source
+    # region has the same variance as the sky, and both have the
+    # suppression and correlation of the resampled sky noise
+    wsum = data_median['wsum'].array
+    ratio_in = noise_median[inside].var() * wsum[inside].mean()
+    ratio_out = noise_median[outside].var() * wsum[outside].mean()
+    assert 0.70 < ratio_in < 0.90
+    assert abs(ratio_in / ratio_out - 1) < 0.10
+    assert abs(_lag1_corr(noise_median[inside]) - _lag1_corr(
+        noise_median[outside]
+    )) < 0.04
+
+    # while the per-pixel epochs give the source variance there
+    ratio_pixel_in = noise_pixel[inside].var() * wsum[inside].mean()
+    assert ratio_pixel_in > 5 * ratio_in

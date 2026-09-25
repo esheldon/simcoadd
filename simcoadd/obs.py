@@ -12,6 +12,7 @@ def make_obs(
     psf,
     psf_dim,
     psf_noise_field,
+    realization_noise_field=None,
 ):
     """
     Create an ngmix Observation from the input data
@@ -29,16 +30,26 @@ def make_obs(
     shear: galsim.Shear
         The shear to apply.  In the future this will allow other types.
     noise_field: noise field
-        e.g. WhiteNoiseField, CoaddNoiseField, or SourcePoissonNoiseField,
-        which also receives the noiseless image to set the source
-        variance. It is duck typed so you can create your own.  It just
-        needs either the add_to method or add_to_with_model method.
+        e.g. ImageNoiseField or CoaddNoiseField.  It is duck typed so you
+        can create your own.  It needs an add_to(image, model) method,
+        where model is the noiseless image, returning a dict with
+        'image' (the noise added) and 'weight' (1 / variance per pixel)
+        as galsim Images, and optionally 'nepoch' and 'wsum'
     psf: psf object
         Can be a galsim GSObject or an object with a get_psf(position) method
     psf_dim: int
         Dimension of the PSF, so final image has dimensions [psf_dim, psf_dim]
     psf_noise_field: a noise field
-        e.g. simcoadd.WhiteNoiseField
+        e.g. simcoadd.WhiteNoiseField.  The psf image is a model, so it
+        gets no source noise; this needs an add_to(image) method
+        returning a dict with 'weight'
+    realization_noise_field: noise field, optional
+        The field for the independent noise realization attached to the
+        Observation, with the same contract as noise_field.  It must
+        return the same weight map as noise_field; e.g. the same
+        construction with the ImageNoiseField median option set, which
+        draws each image at the median of its variance plane as for
+        real coadds.  Default None, meaning noise_field is used
 
     Returns
     -------
@@ -61,7 +72,7 @@ def make_obs(
     # the noiseless image, for noise that depends on the sources
     model = image.copy()
 
-    noise_data = _add_noise(noise_field=noise_field, image=image, model=model)
+    noise_data = noise_field.add_to(image, model)
 
     gscen = image.true_center
     gsjac = image.wcs.local(image_pos=gscen)
@@ -91,11 +102,17 @@ def make_obs(
         jacobian=psf_jacobian,
     )
 
+    # an independent realization of the noise
+    if realization_noise_field is None:
+        realization_noise_field = noise_field
+
     noise_image = image * 0
-    noise_data2 = _add_noise(
-        noise_field=noise_field, image=noise_image, model=model,
-    )
-    assert np.all(noise_data2['weight'].array == noise_data['weight'].array)
+    noise_data2 = realization_noise_field.add_to(noise_image, model)
+    if not np.all(noise_data2['weight'].array == noise_data['weight'].array):
+        raise ValueError(
+            'the realization noise field must give the same weight map '
+            'as the noise field'
+        )
 
     obs = ngmix.Observation(
         image=image.array,
@@ -110,19 +127,10 @@ def make_obs(
     else:
         obs.meta['nepoch'] = obs.image * 0 + 1.0
 
+    if 'wsum' in noise_data:
+        obs.meta['wsum'] = noise_data['wsum'].array
+
     return obs
-
-
-def _add_noise(noise_field, image, model):
-    """
-    add noise to the image; fiels such as the source poisson field also need
-    the noiseless model image
-    """
-
-    if hasattr(noise_field, 'add_to_with_model'):
-        return noise_field.add_to_with_model(image, model=model)
-    else:
-        return noise_field.add_to(image)
 
 
 def _get_image_cen_jacobian(gscen, gsjac):

@@ -1,7 +1,7 @@
 import numpy as np
 import galsim
 import simcoadd
-from simcoadd import vis, WhiteNoiseField
+from simcoadd import vis, ImageNoiseField
 from simcoadd import make_random_dither
 import matplotlib.pyplot as mplt
 
@@ -25,9 +25,14 @@ def main():
 
     sigmas = rng.normal(scale=sigma_per * 0.05, loc=sigma_per, size=nepoch)
 
+    # each epoch has white sky noise plus source poisson noise; the
+    # survey gain is apportioned over the epochs by their share of the
+    # sky weight
+    weights = 1.0 / sigmas**2
+    gains = survey.gain * weights / weights.sum()
     noise_fields = [
-        WhiteNoiseField(rng=rng, sigma=sigma)
-        for sigma in sigmas
+        ImageNoiseField(rng=rng, sigma=sigma, gain=gain)
+        for sigma, gain in zip(sigmas, gains)
     ]
     dithers = [
         make_random_dither(dim, p_edge, rng)
@@ -83,7 +88,9 @@ def main():
         shear=shear,
     )
 
-    noise_data = noise_field.add_to(gsimage)
+    # the noiseless model sets the source variance
+    model = gsimage.copy()
+    noise_data = noise_field.add_to(gsimage, model)
     weight = noise_data['weight']
 
     with mplt.style.context('dark_background'):

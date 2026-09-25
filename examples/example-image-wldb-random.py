@@ -45,7 +45,10 @@ def main():
         layout=layout,
     )
 
-    noise_field = simcoadd.WhiteNoiseField(rng=rng, sigma=survey.noise)
+    # sky noise plus source poisson noise
+    noise_field = simcoadd.ImageNoiseField(
+        rng=rng, sigma=survey.noise, gain=survey.gain,
+    )
 
     obj_data = galaxies.get_obj_data(survey)
 
@@ -58,7 +61,9 @@ def main():
         shear=shear,
     )
 
-    noise_field.add_to(gsimage)
+    # the noiseless model sets the source variance
+    model = gsimage.copy()
+    noise_field.add_to(gsimage, model)
 
     simcoadd.vis.show_image(
         image=gsimage.array,
