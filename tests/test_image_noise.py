@@ -106,6 +106,24 @@ def test_image_noise_median():
     )
 
 
+def test_image_noise_autocorr():
+    """
+    the noise is white: the autocorrelation is a delta
+    """
+    rng = np.random.RandomState(7)
+    noise_field = simcoadd.ImageNoiseField(rng=rng, sigma=0.3, gain=1.0)
+    image = _make_image(20, 0.2)
+
+    lag = 5
+    xi = noise_field.get_autocorr(wcs=image.wcs, lag=lag)
+    expected = np.zeros((2 * lag + 1, 2 * lag + 1))
+    expected[lag, lag] = 1.0
+    np.testing.assert_array_equal(xi, expected)
+
+    with pytest.raises(ValueError):
+        noise_field.get_autocorr(wcs=image.wcs, lag=0)
+
+
 def test_image_noise_bad_inputs():
     rng = np.random.RandomState(5)
     with pytest.raises(ValueError):

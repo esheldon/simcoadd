@@ -348,6 +348,119 @@ def test_coadd_noise_reproducible():
     np.testing.assert_array_equal(results[0][1], results[1][1])
 
 
+def _empirical_autocorr(arr, lag):
+    """
+    the normalized autocorrelation of an array out to lag on each axis
+    """
+    x = arr - arr.mean()
+    ny, nx = x.shape
+    n = 2 * lag + 1
+    xi = np.zeros((n, n))
+    for dy in range(-lag, lag + 1):
+        for dx in range(-lag, lag + 1):
+            a = x[lag:-lag, lag:-lag]
+            b = x[lag + dy:ny - lag + dy, lag + dx:nx - lag + dx]
+            xi[dy + lag, dx + lag] = (a * b).mean()
+    return xi / xi[lag, lag]
+
+
+def test_coadd_noise_autocorr_identity():
+    """
+    with no dither or rotation the resampling is an identity and the
+    autocorrelation is a delta
+    """
+    rng = np.random.RandomState(31)
+    sigmas = [0.7, 1.0, 1.3]
+    lag = 8
+
+    cnf = _make_coadd_noise_field(
+        rng=rng, dim=101, sigmas=sigmas, p_edge=0, dither=False,
+        rotate=False,
+    )
+    image = _make_coadd_image(101)
+    xi = cnf.get_autocorr(wcs=image.wcs, lag=lag)
+
+    expected = np.zeros((2 * lag + 1, 2 * lag + 1))
+    expected[lag, lag] = 1.0
+    assert xi.shape == expected.shape
+    np.testing.assert_allclose(xi, expected, atol=1.0e-8)
+
+
+def test_coadd_noise_autocorr_matches_realization():
+    """
+    the noise-free autocorrelation from the resampling impulse responses
+    matches the empirical autocorrelation of a large noise realization
+    at every lag, with and without rotations
+    """
+    lag = 8
+    dim = 400
+    for rotate in (False, True):
+        rng = np.random.RandomState(1234)
+        sigmas = rng.normal(loc=1.0, scale=0.05, size=10)
+        cnf = _make_coadd_noise_field(
+            rng=rng, dim=dim, sigmas=sigmas, p_edge=0, dither=True,
+            rotate=rotate,
+        )
+        image = _make_coadd_image(dim)
+        xi = cnf.get_autocorr(wcs=image.wcs, lag=lag)
+
+        assert xi.shape == (2 * lag + 1, 2 * lag + 1)
+        assert xi[lag, lag] == 1.0
+        # the lanczos3 correlation at lag 1, see
+        # test_coadd_noise_variance_suppression; a single set of
+        # dithers scatters about the mean level there
+        assert 0.05 < xi[lag, lag + 1] < 0.25
+        assert 0.05 < xi[lag + 1, lag] < 0.25
+        # symmetric under inversion
+        np.testing.assert_allclose(xi, xi[::-1, ::-1], atol=1.0e-10)
+
+        cnf.add_to(image, image * 0)
+        empirical = _empirical_autocorr(image.array, lag)
+
+        # the realization's sampling noise per lag is about 0.003
+        assert np.abs(xi - empirical).max() < 0.015
+
+
+def test_coadd_noise_autocorr_whole_pixel_dither():
+    """
+    the autocorrelation depends on the dithers only through their
+    sub-pixel part
+    """
+    lag = 6
+    dim = 101
+    sigmas = [0.7, 1.0, 1.3]
+    rng = np.random.RandomState(5)
+    dithers = [
+        galsim.PositionD(rng.uniform(-0.5, 0.5), rng.uniform(-0.5, 0.5))
+        for _ in sigmas
+    ]
+    shifted = [galsim.PositionD(d.x + 3, d.y - 7) for d in dithers]
+    image = _make_coadd_image(dim)
+
+    xis = []
+    for these in (dithers, shifted):
+        fields = [
+            ImageNoiseField(rng=rng, sigma=s, gain=1.0) for s in sigmas
+        ]
+        cnf = simcoadd.CoaddNoiseField(fields, these, None)
+        xis.append(cnf.get_autocorr(wcs=image.wcs, lag=lag))
+
+    np.testing.assert_allclose(xis[0], xis[1], atol=1.0e-10)
+
+
+def test_coadd_noise_autocorr_bad_lag():
+    import pytest
+
+    sigmas = [0.7, 1.0, 1.3]
+    cnf = _make_coadd_noise_field(
+        rng=np.random.RandomState(1), dim=51, sigmas=sigmas, p_edge=0,
+        dither=True, rotate=True,
+    )
+    image = _make_coadd_image(51)
+    with pytest.raises(ValueError):
+        cnf.get_autocorr(wcs=image.wcs, lag=0)
+
+
 def _make_patch_model(dim, flux):
     """
     a bright flat patch in the middle of the coadd, covering a few

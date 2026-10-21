@@ -130,6 +130,159 @@ class CoaddNoiseField:
 
         return noise_coadd_data
 
+    def get_autocorr(self, wcs, lag):
+        """
+        Get the noise-free, position-averaged autocorrelation function
+        of the coadded noise.
+
+        Each epoch's noise is white, so the coadd noise autocorrelation
+        is the inverse-variance weighted sum over epochs of the
+        autocorrelation of each epoch's resampling impulse response,
+        averaged here over a grid of impulse positions, which samples
+        the sub-pixel phases of the rotated epochs.  The dithers enter
+        only through their sub-pixel part: the whole-pixel part moves
+        the epoch grid by whole coadd pixels and does not change the
+        correlation.  Every epoch is taken to cover the field; the
+        correlation near an epoch edge is not represented.  This is
+        the kernel the metacal fusion correction needs, for example
+        metacal.ImpulseResponse.from_autocorr(xi), and it is far better
+        determined than the autocorrelation of a noise realization.
+
+        The noise fields must carry the epoch sky sigma as .sigma, as
+        ImageNoiseField does.
+
+        Parameters
+        ----------
+        wcs: galsim WCS
+            The coadd wcs; only its local pixel geometry is used
+        lag: int
+            The autocorrelation is returned for lags -lag..lag on each
+            axis.  Lanczos-3 resampling correlates the noise to about
+            six pixels in each direction, so 8 is ample
+
+        Returns
+        -------
+        xi: array
+            (2 * lag + 1, 2 * lag + 1) array, the autocorrelation
+            xi(dy, dx) centered on [lag, lag] and normalized to 1 there
+        """
+        import numpy as np
+        import galsim
+        from ..wcs import wcs_with_new_image_origin
+        from ..coadding import resample_onto_image
+
+        lag = int(lag)
+        if lag < 1:
+            raise ValueError(f'lag must be at least 1, got {lag}')
+
+        # a coadd grid big enough to hold the full impulse response for
+        # any rotation, plus the impulse grid offsets
+        dim = 2 * lag + 24
+        cen = (dim - 1.0) / 2.0 + 1
+        coadd_wcs = wcs_with_new_image_origin(
+            wcs=wcs, new_image_origin=galsim.PositionD(cen, cen),
+        )
+        coadd_image = galsim.ImageD(dim, dim, wcs=coadd_wcs)
+
+        # the impulse positions: a 4x4 grid about the epoch center
+        offsets = [-3, -1, 1, 3]
+
+        n = 2 * lag + 1
+        xi = np.zeros((n, n))
+        for noise_field, dither, rotation in zip(
+            self._noise_fields, self._dithers, self._rotations,
+        ):
+            if dither is not None:
+                dither = galsim.PositionD(dither.x % 1.0, dither.y % 1.0)
+
+            epoch_image = _make_epoch_image(
+                coadd_image=coadd_image, dither=dither, rotation=rotation,
+            )
+            irow, icol = [
+                (epoch_image.array.shape[i] - 1) // 2 for i in (0, 1)
+            ]
+
+            xi_epoch = np.zeros((n, n))
+            for drow in offsets:
+                for dcol in offsets:
+                    epoch_image.array[:, :] = 0.0
+                    epoch_image.array[irow + drow, icol + dcol] = 1.0
+
+                    response = coadd_image * 0
+                    resample_onto_image(
+                        image=epoch_image, output_image=response,
+                    )
+                    xi_epoch += _autocorr(response.array, lag)
+
+            # epoch i enters the noise with weight w_i / sum(w), w_i =
+            # 1/sigma_i^2, so its autocorrelation is weighted by
+            # w_i^2 sigma_i^2 = 1 / sigma_i^2
+            xi += xi_epoch / noise_field.sigma ** 2
+
+        return xi / xi[lag, lag]
+
+
+def _autocorr(image, lag):
+    """
+    The autocorrelation of an image out to the input lag, with zero
+    padding so the circular transform does not wrap
+
+    Parameters
+    ----------
+    image: array
+        The image
+    lag: int
+        The lag on each axis
+
+    Returns
+    -------
+    (2 * lag + 1, 2 * lag + 1) array centered on [lag, lag]
+    """
+    import numpy as np
+
+    n0, n1 = image.shape
+    f = np.fft.fft2(image, s=(2 * n0, 2 * n1))
+    ac = np.fft.fftshift(np.fft.ifft2(np.abs(f) ** 2).real)
+    return ac[n0 - lag:n0 + lag + 1, n1 - lag:n1 + lag + 1]
+
+
+def _make_epoch_image(coadd_image, dither, rotation):
+    """
+    Make an empty epoch image, on the grid dithered and rotated
+    relative to the input coadd image and big enough to cover it
+
+    Parameters
+    ----------
+    coadd_image: galsim.Image
+        The reference coadd image, used as a reference wcs and for
+        determining the epoch image size
+    dither: galsim.PositionD or None
+        The dither in coadd pixels
+    rotation: galsim.Angle or None
+        The rotation of the epoch grid
+
+    Returns
+    -------
+    galsim.ImageD
+    """
+    import numpy as np
+    import galsim
+    from ..wcs import dither_wcs
+    from ..coadding import get_min_coverage_dim
+
+    dim = get_min_coverage_dim(dims=coadd_image.array.shape)
+    dims = [dim] * 2
+    center = (np.array(dims) - 1.0) / 2.0
+    new_image_origin = galsim.PositionD(center[1], center[0])
+
+    wcs = dither_wcs(
+        wcs=coadd_image.wcs,
+        dither=dither,
+        rotation=rotation,
+        new_image_origin=new_image_origin,
+    )
+    return galsim.ImageD(dim, dim, wcs=wcs)
+
 
 def _generate_dithered_noise(
     coadd_image,
@@ -152,10 +305,10 @@ def _generate_dithered_noise(
         frame for the noise field
     noise_field: noise field
         e.g. ImageNoiseField
-    dither: bool
-        If set to True, use translational dithers
-    rotat: bool
-        If set to True, use rotational dithers
+    dither: galsim.PositionD or None
+        The dither in coadd pixels
+    rotation: galsim.Angle or None
+        The rotation of the epoch grid
 
     Returns
     -------
@@ -163,23 +316,11 @@ def _generate_dithered_noise(
     image: galsim.Image
     weight: galsim.Image holding 1/sigma^2
     """
-    import numpy as np
-    import galsim
-    from ..wcs import dither_wcs
-    from ..coadding import get_min_coverage_dim, resample_onto_image
+    from ..coadding import resample_onto_image
 
-    dim = get_min_coverage_dim(dims=coadd_image.array.shape)
-    dims = [dim] * 2
-    center = (np.array(dims) - 1.0) / 2.0
-    new_image_origin = galsim.PositionD(center[1], center[0])
-
-    wcs = dither_wcs(
-        wcs=coadd_image.wcs,
-        dither=dither,
-        rotation=rotation,
-        new_image_origin=new_image_origin,
+    noise_image = _make_epoch_image(
+        coadd_image=coadd_image, dither=dither, rotation=rotation,
     )
-    noise_image = galsim.ImageD(dim, dim, wcs=wcs)
 
     epoch_model = noise_image * 0
     resample_onto_image(image=model, output_image=epoch_model)
