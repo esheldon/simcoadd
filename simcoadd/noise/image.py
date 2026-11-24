@@ -95,3 +95,31 @@ class ImageNoiseField:
             'image': noise_image,
             'weight': weight,
         }
+
+    def get_autocorr(self, wcs, lag):
+        """
+        Get the noise autocorrelation function: the noise is white, so
+        this is a delta.  See CoaddNoiseField.get_autocorr
+
+        Parameters
+        ----------
+        wcs: galsim WCS
+            Unused; part of the noise field protocol
+        lag: int
+            The autocorrelation is returned for lags -lag..lag on each
+            axis
+
+        Returns
+        -------
+        xi: array
+            (2 * lag + 1, 2 * lag + 1) array with a 1 at [lag, lag]
+        """
+        import numpy as np
+
+        lag = int(lag)
+        if lag < 1:
+            raise ValueError(f'lag must be at least 1, got {lag}')
+
+        xi = np.zeros((2 * lag + 1, 2 * lag + 1))
+        xi[lag, lag] = 1.0
+        return xi
